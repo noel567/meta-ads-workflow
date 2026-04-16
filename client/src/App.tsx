@@ -5,33 +5,44 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import MetaConnect from "./pages/MetaConnect";
+import Analytics from "./pages/Analytics";
+import AdLibrary from "./pages/AdLibrary";
+import Transcripts from "./pages/Transcripts";
+import Teleprompter from "./pages/Teleprompter";
+import Documents from "./pages/Documents";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+      <Route path="/" component={Home} />
+      <Route path="/connect" component={MetaConnect} />
+      <Route path="/analytics" component={Analytics} />
+      <Route path="/ad-library" component={AdLibrary} />
+      <Route path="/transcripts" component={Transcripts} />
+      <Route path="/teleprompter/:id?" component={Teleprompter} />
+      <Route path="/documents" component={Documents} />
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
-          <Toaster />
+          <Toaster
+            theme="dark"
+            toastOptions={{
+              style: {
+                background: "oklch(0.14 0.012 250)",
+                border: "1px solid oklch(0.22 0.015 250)",
+                color: "oklch(0.97 0.005 250)",
+              },
+            }}
+          />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

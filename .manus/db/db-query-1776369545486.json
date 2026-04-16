@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `ads` (`id` int AUTO_INCREMENT NOT NULL, `userId` int NOT NULL, `campaignId` int, `metaId` varchar(64) NOT NULL, `campaignMetaId` varchar(64), `name` varchar(255) NOT NULL, `status` varchar(32), `adsetName` varchar(255), `impressions` bigint, `reach` bigint, `clicks` bigint, `spend` float, `ctr` float, `cpc` float, `cpm` float, `roas` float, `conversions` float, `creativeType` varchar(32), `thumbnailUrl` text, `adText` text, `headline` varchar(512), `callToAction` varchar(64), `rawData` json, `syncedAt` timestamp NOT NULL DEFAULT (now()), `createdAt` timestamp NOT NULL DEFAULT (now()), CONSTRAINT `ads_id` PRIMARY KEY(`id`))",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user dcXGBbz3UJqVrCp.root --database 4xE4vZJFvFwZj547EifVzi --execute CREATE TABLE `ads` (`id` int AUTO_INCREMENT NOT NULL, `userId` int NOT NULL, `campaignId` int, `metaId` varchar(64) NOT NULL, `campaignMetaId` varchar(64), `name` varchar(255) NOT NULL, `status` varchar(32), `adsetName` varchar(255), `impressions` bigint, `reach` bigint, `clicks` bigint, `spend` float, `ctr` float, `cpc` float, `cpm` float, `roas` float, `conversions` float, `creativeType` varchar(32), `thumbnailUrl` text, `adText` text, `headline` varchar(512), `callToAction` varchar(64), `rawData` json, `syncedAt` timestamp NOT NULL DEFAULT (now()), `createdAt` timestamp NOT NULL DEFAULT (now()), CONSTRAINT `ads_id` PRIMARY KEY(`id`))",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 221
+}
