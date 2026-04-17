@@ -11,9 +11,11 @@ import { sdk } from "./_core/sdk";
 import { COOKIE_NAME } from "../shared/const";
 
 function getRedirectUri(req: Request): string {
-  // Use the origin from the request to build the redirect URI
-  const proto = req.headers["x-forwarded-proto"] ?? req.protocol ?? "https";
-  const host = req.headers["x-forwarded-host"] ?? req.headers.host ?? "";
+  // Use GOOGLE_REDIRECT_URI env var if set (for production/published app)
+  if (ENV.googleRedirectUri) return ENV.googleRedirectUri;
+  // Prefer x-forwarded headers (behind proxy) but fall back to request host
+  const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() ?? req.protocol ?? "https";
+  const host = (req.headers["x-forwarded-host"] as string | undefined)?.split(",")[0]?.trim() ?? req.headers.host ?? "";
   return `${proto}://${host}/api/google/callback`;
 }
 

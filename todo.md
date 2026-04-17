@@ -172,3 +172,9 @@
 - [x] Frontend: Verbindungsstatus anzeigen (verbunden/getrennt + E-Mail)
 - [x] Frontend: Verbindung trennen Button
 - [x] Vitest: Google Drive Token-Refresh Test (27/27 bestanden)
+
+## Bugfixes (April 2026)
+- [x] Google Drive OAuth 403-Fehler: googleRedirectUri zu ENV hinzugefügt (server/_core/env.ts)
+- [x] GOOGLE_REDIRECT_URI Secret gesetzt (feste Callback-URL für OAuth)
+- [x] getRedirectUri() nutzt ENV.googleRedirectUri als primäre Quelle
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
