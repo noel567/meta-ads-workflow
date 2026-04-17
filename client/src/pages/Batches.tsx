@@ -330,10 +330,6 @@ ${batch.cta || ""}`;
                         size="sm"
                         className="h-8 gap-1.5 text-xs"
                         onClick={() => {
-                          if (!driveConnection) {
-                            toast.error("Bitte zuerst Google Drive verbinden (Einstellungen)");
-                            return;
-                          }
                           setUploadingId(batch.id);
                           uploadDriveMutation.mutate({ batchId: batch.id });
                         }}

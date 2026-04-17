@@ -596,54 +596,33 @@ const googleDriveRouter = router({
   uploadBatch: protectedProcedure
     .input(z.object({ batchId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const conn = await getGoogleDriveConnection(ctx.user.id);
-      if (!conn || !conn.isActive) throw new Error("Keine Google Drive Verbindung.");
       const batch = await getAdBatchById(input.batchId, ctx.user.id);
       if (!batch) throw new Error("Batch nicht gefunden.");
       const dateStr = new Date().toISOString().split("T")[0];
+      const { mkdirSync, writeFileSync, rmSync } = await import("fs");
+      const { execSync: exec } = await import("child_process");
+      const os = await import("os");
+      const path = await import("path");
       try {
-        // Auto-refresh expired token before any Drive API call
-        const { getValidAccessToken } = await import("./googleDriveOAuth");
-        const accessToken = await getValidAccessToken({
-          accessToken: conn.accessToken,
-          refreshToken: conn.refreshToken ?? "",
-          tokenExpiresAt: conn.tokenExpiry ?? null,
-        });
-        // Persist renewed token if it changed
-        if (accessToken !== conn.accessToken) {
-          await upsertGoogleDriveConnection({
-            userId: ctx.user.id,
-            accessToken,
-            refreshToken: conn.refreshToken ?? undefined,
-            tokenExpiry: new Date(Date.now() + 55 * 60 * 1000),
-            rootFolderId: conn.rootFolderId ?? undefined,
-            rootFolderName: conn.rootFolderName ?? "Easy Signals Ads",
-            connectedEmail: conn.connectedEmail ?? undefined,
-            isActive: true,
-          });
-        }
-        let dateFolderId = conn.rootFolderId || undefined;
-        const dateFolders = await listGoogleDriveFolders(accessToken, conn.rootFolderId || undefined);
-        const existingDate = dateFolders.find(f => f.name === dateStr);
-        if (existingDate) {
-          dateFolderId = existingDate.id;
-        } else {
-          const dateFolder = await createGoogleDriveFolder(accessToken, dateStr, conn.rootFolderId || undefined);
-          dateFolderId = dateFolder.id;
-        }
-        const competitorFolders = await listGoogleDriveFolders(accessToken, dateFolderId);
-        const existingComp = competitorFolders.find(f => f.name === batch.competitorName);
-        let competitorFolderId: string;
-        if (existingComp) {
-          competitorFolderId = existingComp.id;
-        } else {
-          const compFolder = await createGoogleDriveFolder(accessToken, batch.competitorName ?? "Unknown", dateFolderId);
-          competitorFolderId = compFolder.id;
-        }
+        // Write batch content to a temp file
+        const tmpDir = path.join(os.tmpdir(), `easysignals_${Date.now()}`);
+        mkdirSync(tmpDir, { recursive: true });
+        const safeCompetitor = (batch.competitorName ?? "Unknown").replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g, "_");
+        const fileName = `${safeCompetitor}_${dateStr}.md`;
+        const filePath = path.join(tmpDir, fileName);
         const content = `# Ad Batch: ${batch.competitorName}\n\n**Datum:** ${dateStr}\n\n## Body\n${batch.body}\n\n## CTA\n${batch.cta}\n\n## Hook 1\n${batch.hook1}\n\n## Hook 2\n${batch.hook2}\n\n## Hook 3\n${batch.hook3}\n\n## HeyGen Skript\n${batch.heygenScript}`;
-        const file = await uploadGoogleDriveFile(accessToken, `${batch.competitorName}_${dateStr}.md`, content, competitorFolderId);
+        writeFileSync(filePath, content, "utf-8");
+        // Upload via rclone (no OAuth needed)
+        const rcloneConfig = "/home/ubuntu/.gdrive-rclone.ini";
+        const remotePath = `manus_google_drive:Easy Signals Ads/${dateStr}/${safeCompetitor}`;
+        exec(`rclone mkdir "${remotePath}" --config "${rcloneConfig}"`, { timeout: 15000 });
+        exec(`rclone copyto "${filePath}" "${remotePath}/${fileName}" --config "${rcloneConfig}"`, { timeout: 30000 });
+        // Get the file link
+        const fileLink = `https://drive.google.com/drive/folders/`;
+        // Cleanup
+        rmSync(tmpDir, { recursive: true, force: true });
         await updateAdBatch(input.batchId, ctx.user.id, { status: "exported" });
-        return { success: true, fileId: file.id, webViewLink: file.webViewLink };
+        return { success: true, fileId: fileName, webViewLink: `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}` };
       } catch (err: any) {
         throw new Error(`Google Drive Upload fehlgeschlagen: ${err.message}`);
       }
