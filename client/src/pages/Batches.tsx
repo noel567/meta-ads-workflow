@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
+import HookGenerator from "@/components/HookGenerator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -423,6 +424,7 @@ ${batch.cta || ""}`;
                           <TabsTrigger value="body" className="text-xs">Body</TabsTrigger>
                           <TabsTrigger value="cta" className="text-xs">CTA</TabsTrigger>
                           <TabsTrigger value="heygen" className="text-xs">HeyGen Skript</TabsTrigger>
+                          <TabsTrigger value="hookgen" className="text-xs text-primary">✦ Neue Hooks</TabsTrigger>
                           {batch.sourceAdText && <TabsTrigger value="source" className="text-xs">Quelle</TabsTrigger>}
                         </TabsList>
 
@@ -526,6 +528,21 @@ ${batch.cta || ""}`;
                               <Video className="w-3.5 h-3.5" />
                               An HeyGen senden
                             </Button>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="hookgen" className="mt-0">
+                          <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
+                            <div className="flex items-center gap-2 mb-4">
+                              <Sparkles className="w-4 h-4 text-primary" />
+                              <span className="text-sm font-semibold">Neue Hooks generieren</span>
+                              <span className="text-xs text-muted-foreground">– KI erstellt 3 frische Hooks für diesen Batch</span>
+                            </div>
+                            <HookGenerator
+                              initialScript={`${batch.hook1 || ""}\n\n${batch.body || ""}\n\n${batch.cta || ""}`}
+                              scriptEditable={false}
+                              compact
+                            />
                           </div>
                         </TabsContent>
 

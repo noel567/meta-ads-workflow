@@ -149,3 +149,14 @@
 - [x] UI: Video-Status-Anzeige (pending/processing/completed/failed)
 - [x] UI: Link zum fertigen Video in HeyGen
 - [x] UI: HeyGen-Status in Einstellungen (API-Key-Verbindung testen)
+
+## Hook-Generator (automatisch 3 Hooks pro Skript)
+- [ ] Backend: hooks.generate tRPC-Router (Skript-Text → 3 Hooks mit Typ + Inhalt)
+- [ ] Hook-Typen: Neugier-Hook, Problem/Schmerz-Hook, Ergebnis/Transformation-Hook
+- [ ] Hook-Generator Komponente: HookGenerator.tsx (wiederverwendbar)
+- [ ] Integration in Transkripte-Seite: "3 Hooks generieren" Button pro Transkript
+- [ ] Integration in Batches-Seite: Hooks direkt aus Batch-Body neu generieren
+- [ ] Hooks inline bearbeitbar und einzeln kopierbar
+- [ ] Hooks als HeyGen-Skript formatiert exportierbar
+- [ ] Hooks in Teleprompter ladbar
+- [ ] Vitest: hooks.generate Router Test

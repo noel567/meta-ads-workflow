@@ -762,8 +762,113 @@ const heygenRouter = router({
   }),
 });
 
-// ─── App Router ───────────────────────────────────────────────────────────────
+// ─── Hooks Router ───────────────────────────────────────────────────────────
 
+const hooksRouter = router({
+  generate: protectedProcedure
+    .input(z.object({
+      scriptText: z.string().min(10, "Skript muss mindestens 10 Zeichen haben"),
+      context: z.string().optional(), // z.B. "Easy Signals – Automatisierungssoftware für Marketer"
+      language: z.string().default("de"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const brand = await getBrandSettings(ctx.user.id);
+      const brandContext = brand
+        ? `Marke: ${brand.brandName}. ${brand.brandDescription || ""}. Zielgruppe: ${brand.targetAudience || "Unternehmer und Marketer"}. USPs: ${brand.uniqueSellingPoints || "Einfachheit, Ergebnisse, Automatisierung"}. Ton: ${brand.toneOfVoice || "professionell und direkt"}.`
+        : input.context || "Easy Signals – Performance-Marketing-Automatisierung für Unternehmer.";
+
+      const langInstruction = input.language === "de"
+        ? "Antworte ausschließlich auf Deutsch."
+        : `Respond in ${input.language}.`;
+
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `Du bist ein erstklassiger Performance-Marketing-Copywriter. ${langInstruction}
+Deine Aufgabe: Erstelle für das folgende Anzeigenskript genau 3 verschiedene, starke Hooks.
+
+Jeder Hook hat einen anderen Ansatz:
+1. NEUGIER-HOOK: Weckt Neugier durch eine überraschende Frage oder Aussage (1-2 Sätze)
+2. SCHMERZ-HOOK: Spricht ein konkretes Problem oder einen Schmerz der Zielgruppe an (1-2 Sätze)
+3. ERGEBNIS-HOOK: Zeigt eine konkrete Transformation oder ein messbares Ergebnis (1-2 Sätze)
+
+Regeln:
+- Jeder Hook muss sofort Aufmerksamkeit erzeugen (erste 3 Sekunden entscheidend)
+- Hooks sind für Video-Ads optimiert (direkte Ansprache, kurz, prägnant)
+- Hooks müssen zum Skript-Inhalt passen und nahtlos in den Body übergehen
+- Branding: ${brandContext}
+
+Antworte NUR im folgenden JSON-Format:
+{"hook1":{"type":"neugier","label":"Neugier-Hook","text":"..."},"hook2":{"type":"schmerz","label":"Schmerz-Hook","text":"..."},"hook3":{"type":"ergebnis","label":"Ergebnis-Hook","text":"..."}}`
+          },
+          {
+            role: "user",
+            content: `Anzeigenskript:\n${input.scriptText}\n\nErstelle jetzt die 3 Hooks.`,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "hooks_result",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                hook1: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string" },
+                    label: { type: "string" },
+                    text: { type: "string" },
+                  },
+                  required: ["type", "label", "text"],
+                  additionalProperties: false,
+                },
+                hook2: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string" },
+                    label: { type: "string" },
+                    text: { type: "string" },
+                  },
+                  required: ["type", "label", "text"],
+                  additionalProperties: false,
+                },
+                hook3: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string" },
+                    label: { type: "string" },
+                    text: { type: "string" },
+                  },
+                  required: ["type", "label", "text"],
+                  additionalProperties: false,
+                },
+              },
+              required: ["hook1", "hook2", "hook3"],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error("KI-Antwort war leer");
+      const parsed = JSON.parse(typeof content === "string" ? content : JSON.stringify(content));
+      return {
+        hooks: [
+          { ...parsed.hook1, index: 1 },
+          { ...parsed.hook2, index: 2 },
+          { ...parsed.hook3, index: 3 },
+        ] as Array<{ type: string; label: string; text: string; index: number }>,
+        scriptText: input.scriptText,
+        generatedAt: new Date().toISOString(),
+      };
+    }),
+});
+
+// ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -786,6 +891,7 @@ export const appRouter = router({
   automation: automationRouter,
   dashboard: dashboardRouter,
   heygen: heygenRouter,
+  hooks: hooksRouter,
 });
 
 export type AppRouter = typeof appRouter;
