@@ -64,9 +64,9 @@ vi.mock("./_core/llm", () => ({
         content: JSON.stringify({
           body: "Test Body",
           cta: "Jetzt starten",
-          hook1: "Hook 1",
-          hook2: "Hook 2",
-          hook3: "Hook 3",
+          hook1: { type: "neugier", label: "Neugier-Hook", text: "Wusstest du, dass 80% aller Ads scheitern?" },
+          hook2: { type: "schmerz", label: "Schmerz-Hook", text: "Du verlierst täglich Kunden, weil deine Ads nicht performen." },
+          hook3: { type: "ergebnis", label: "Ergebnis-Hook", text: "Mit Easy Signals verdoppeln Unternehmer ihren ROAS in 30 Tagen." },
           heygenScript: "HeyGen Script",
           insights: "KI-Analyse: Sehr gute Performance.",
           overallScore: 7,
@@ -396,5 +396,43 @@ describe("dashboard.getStats", () => {
     expect(stats.avgROAS).toBe(0);
     expect(Array.isArray(stats.recentTranscripts)).toBe(true);
     expect(Array.isArray(stats.recentAds)).toBe(true);
+  });
+});
+
+// ─── Hooks Generate Tests ─────────────────────────────────────────────────────
+
+describe("hooks.generate", () => {
+  it("should return exactly 3 hooks with required fields", async () => {
+    const ctx = createCtx();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.hooks.generate({
+      scriptText: "Wir helfen Unternehmern dabei, mit Easy Signals mehr Kunden zu gewinnen. Unser System automatisiert deine Werbung und spart dir täglich Stunden.",
+      language: "de",
+    });
+    expect(result).toHaveProperty("hooks");
+    expect(result).toHaveProperty("generatedAt");
+    expect(Array.isArray(result.hooks)).toBe(true);
+    expect(result.hooks).toHaveLength(3);
+    result.hooks.forEach((hook: { type: string; label: string; text: string; index: number }) => {
+      expect(hook).toHaveProperty("type");
+      expect(hook).toHaveProperty("label");
+      expect(hook).toHaveProperty("text");
+      expect(hook).toHaveProperty("index");
+      expect(typeof hook.text).toBe("string");
+      expect(hook.text.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("should include all three hook types: neugier, schmerz, ergebnis", async () => {
+    const ctx = createCtx();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.hooks.generate({
+      scriptText: "Easy Signals ist das führende Tool für automatisierte Meta-Werbung. Spare Zeit und gewinne mehr Kunden mit KI-gestützten Ads.",
+      language: "de",
+    });
+    const types = result.hooks.map((h: { type: string }) => h.type);
+    expect(types).toContain("neugier");
+    expect(types).toContain("schmerz");
+    expect(types).toContain("ergebnis");
   });
 });

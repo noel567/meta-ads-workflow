@@ -151,12 +151,12 @@
 - [x] UI: HeyGen-Status in Einstellungen (API-Key-Verbindung testen)
 
 ## Hook-Generator (automatisch 3 Hooks pro Skript)
-- [ ] Backend: hooks.generate tRPC-Router (Skript-Text → 3 Hooks mit Typ + Inhalt)
-- [ ] Hook-Typen: Neugier-Hook, Problem/Schmerz-Hook, Ergebnis/Transformation-Hook
-- [ ] Hook-Generator Komponente: HookGenerator.tsx (wiederverwendbar)
-- [ ] Integration in Transkripte-Seite: "3 Hooks generieren" Button pro Transkript
-- [ ] Integration in Batches-Seite: Hooks direkt aus Batch-Body neu generieren
-- [ ] Hooks inline bearbeitbar und einzeln kopierbar
-- [ ] Hooks als HeyGen-Skript formatiert exportierbar
-- [ ] Hooks in Teleprompter ladbar
-- [ ] Vitest: hooks.generate Router Test
+- [x] Backend: hooks.generate tRPC-Router (Skript-Text → 3 Hooks mit Typ + Inhalt)
+- [x] Hook-Typen: Neugier-Hook, Problem/Schmerz-Hook, Ergebnis/Transformation-Hook
+- [x] Hook-Generator Komponente: HookGenerator.tsx (wiederverwendbar)
+- [x] Integration in Transkripte-Seite: "3 Hooks generieren" Button pro Transkript
+- [x] Integration in Batches-Seite: Hooks direkt aus Batch-Body neu generieren
+- [x] Hooks inline bearbeitbar und einzeln kopierbar
+- [x] Hooks als HeyGen-Skript formatiert exportierbar
+- [x] Hooks in Teleprompter ladbar
+- [x] Vitest: hooks.generate Router Test (in meta-ads-workflow.test.ts)

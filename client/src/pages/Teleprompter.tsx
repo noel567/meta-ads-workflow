@@ -31,6 +31,8 @@ export default function Teleprompter() {
 
   const { data: transcripts } = trpc.transcripts.list.useQuery();
   const [selectedId, setSelectedId] = useState<string>(transcriptId ? String(transcriptId) : "");
+  const [directText, setDirectText] = useState<string | null>(null);
+  const [directTitle, setDirectTitle] = useState<string>("Generierter Hook");
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // px per frame
@@ -46,6 +48,21 @@ export default function Teleprompter() {
   const isPlayingRef = useRef(false);
 
   const selectedTranscript = transcripts?.find((t) => String(t.id) === selectedId);
+  const displayText = directText ?? selectedTranscript?.content ?? null;
+  const displayTitle = directText ? directTitle : (selectedTranscript?.title ?? null);
+
+  // sessionStorage: Hook oder direkter Text aus HookGenerator laden
+  useEffect(() => {
+    const stored = sessionStorage.getItem("teleprompter_text");
+    const storedTitle = sessionStorage.getItem("teleprompter_title");
+    if (stored) {
+      setDirectText(stored);
+      if (storedTitle) setDirectTitle(storedTitle);
+      sessionStorage.removeItem("teleprompter_text");
+      sessionStorage.removeItem("teleprompter_title");
+      toast.success("Hook im Teleprompter geladen!", { description: storedTitle || "Generierter Hook" });
+    }
+  }, []);
 
   // Sync selectedId when transcriptId param changes
   useEffect(() => {
@@ -54,10 +71,10 @@ export default function Teleprompter() {
 
   // Auto-select first transcript if none selected
   useEffect(() => {
-    if (!selectedId && transcripts && transcripts.length > 0) {
+    if (!selectedId && !directText && transcripts && transcripts.length > 0) {
       setSelectedId(String(transcripts[0].id));
     }
-  }, [transcripts, selectedId]);
+  }, [transcripts, selectedId, directText]);
 
   // Scroll animation loop
   const animate = useCallback(() => {
@@ -98,6 +115,12 @@ export default function Teleprompter() {
 
   const handleTranscriptChange = (id: string) => {
     setSelectedId(id);
+    setDirectText(null);
+    handleReset();
+  };
+
+  const clearDirectText = () => {
+    setDirectText(null);
     handleReset();
   };
 
@@ -184,7 +207,13 @@ export default function Teleprompter() {
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Transkript
                   </label>
-                  <Select value={selectedId} onValueChange={handleTranscriptChange}>
+                  {directText && (
+                    <div className="mb-2 flex items-center gap-2 px-2 py-1 rounded-md bg-primary/10 border border-primary/20">
+                      <span className="text-xs text-primary font-medium flex-1 truncate">✦ {directTitle}</span>
+                      <button onClick={clearDirectText} className="text-xs text-muted-foreground hover:text-foreground">Transkript wählen</button>
+                    </div>
+                  )}
+                  <Select value={selectedId} onValueChange={handleTranscriptChange} disabled={!!directText}>
                     <SelectTrigger className="bg-input border-border/50">
                       <SelectValue placeholder="Transkript wählen..." />
                     </SelectTrigger>
@@ -263,8 +292,8 @@ export default function Teleprompter() {
               className="teleprompter-text text-white px-8 md:px-16 lg:px-24 pt-24 pb-48"
               style={{ fontSize: `${fontSize}px` }}
             >
-              {selectedTranscript ? (
-                selectedTranscript.content.split("\n").map((line, i) => (
+              {displayText ? (
+                displayText.split("\n").map((line, i) => (
                   <p key={i} className={`mb-4 ${line.trim() === "" ? "mb-8" : ""}`}>
                     {line || "\u00A0"}
                   </p>
@@ -293,7 +322,7 @@ export default function Teleprompter() {
 
             <Button
               onClick={() => setIsPlaying(!isPlaying)}
-              disabled={!selectedTranscript}
+              disabled={!displayText}
               className="h-12 w-12 rounded-full bg-primary hover:bg-primary/90 p-0"
             >
               {isPlaying ? (
