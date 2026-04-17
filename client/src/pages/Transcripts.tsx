@@ -44,7 +44,7 @@ export default function Transcripts() {
     onSuccess: () => {
       toast.success("Transkript erstellt");
       utils.transcripts.list.invalidate();
-      utils.dashboard.stats.invalidate();
+      utils.dashboard.getStats.invalidate();
       setIsCreateOpen(false);
       setNewTitle("");
       setNewContent("");
@@ -65,7 +65,7 @@ export default function Transcripts() {
     onSuccess: () => {
       toast.success("Transkript gelöscht");
       utils.transcripts.list.invalidate();
-      utils.dashboard.stats.invalidate();
+      utils.dashboard.getStats.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -86,13 +86,11 @@ export default function Transcripts() {
     updateMutation.mutate({ id: editingId, title: editTitle, content: editContent });
   };
 
-  const handleExport = (t: { id: number; title: string; content: string }) => {
+  const handleExport = (t: { id: number; title: string }) => {
     exportMutation.mutate({
+      transcriptId: t.id,
       title: t.title,
-      content: t.content,
       format: "markdown",
-      sourceType: "transcript",
-      sourceId: t.id,
     });
   };
 

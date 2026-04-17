@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `heygen_videos` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`batchId` int,\n\t`heygenVideoId` varchar(128) NOT NULL,\n\t`title` varchar(255),\n\t`script` text,\n\t`avatarId` varchar(128),\n\t`avatarName` varchar(255),\n\t`voiceId` varchar(128),\n\t`voiceName` varchar(255),\n\t`status` enum('pending','waiting','processing','completed','failed') NOT NULL DEFAULT 'pending',\n\t`videoUrl` text,\n\t`thumbnailUrl` text,\n\t`duration` float,\n\t`errorMessage` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `heygen_videos_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user dcXGBbz3UJqVrCp.root --database 4xE4vZJFvFwZj547EifVzi --execute CREATE TABLE `heygen_videos` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`batchId` int,\n\t`heygenVideoId` varchar(128) NOT NULL,\n\t`title` varchar(255),\n\t`script` text,\n\t`avatarId` varchar(128),\n\t`avatarName` varchar(255),\n\t`voiceId` varchar(128),\n\t`voiceName` varchar(255),\n\t`status` enum('pending','waiting','processing','completed','failed') NOT NULL DEFAULT 'pending',\n\t`videoUrl` text,\n\t`thumbnailUrl` text,\n\t`duration` float,\n\t`errorMessage` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `heygen_videos_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 148
+}

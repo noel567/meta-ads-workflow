@@ -20,7 +20,7 @@ export default function Documents() {
     onSuccess: () => {
       toast.success("Dokument gelöscht");
       utils.documents.list.invalidate();
-      utils.dashboard.stats.invalidate();
+      utils.dashboard.getStats.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });

@@ -31,7 +31,7 @@ export default function MetaConnect() {
     onSuccess: (data) => {
       toast.success(`Verbunden mit "${data.adAccountName}"`);
       utils.meta.getConnection.invalidate();
-      utils.dashboard.stats.invalidate();
+      utils.dashboard.getStats.invalidate();
       setAccessToken("");
       setAdAccountId("");
       setAppId("");
@@ -43,25 +43,25 @@ export default function MetaConnect() {
     onSuccess: () => {
       toast.success("Meta Verbindung getrennt");
       utils.meta.getConnection.invalidate();
-      utils.dashboard.stats.invalidate();
+      utils.dashboard.getStats.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
 
   const syncCampaignsMutation = trpc.meta.syncCampaigns.useMutation({
     onSuccess: (data) => {
-      toast.success(`${data.count} Kampagnen synchronisiert`);
+      toast.success(`${data.synced} Kampagnen synchronisiert`);
       utils.analytics.getCampaigns.invalidate();
-      utils.dashboard.stats.invalidate();
+      utils.dashboard.getStats.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
 
   const syncAdsMutation = trpc.meta.syncAds.useMutation({
     onSuccess: (data) => {
-      toast.success(`${data.count} Ads synchronisiert`);
+      toast.success(`${data.synced} Ads synchronisiert`);
       utils.analytics.getAds.invalidate();
-      utils.dashboard.stats.invalidate();
+      utils.dashboard.getStats.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });

@@ -91,7 +91,7 @@ export default function AdLibrary() {
   const createTranscriptMutation = trpc.transcripts.create.useMutation({
     onSuccess: () => {
       utils.transcripts.list.invalidate();
-      utils.dashboard.stats.invalidate();
+      utils.dashboard.getStats.invalidate();
       toast.success("Transkript erstellt und gespeichert");
       setGeneratingFor(null);
     },
@@ -125,17 +125,13 @@ export default function AdLibrary() {
 
   const handleSaveAd = (ad: AdResult) => {
     saveAdMutation.mutate({
-      metaAdId: ad.id,
-      pageName: ad.page_name,
+      adId: ad.id,
+      pageName: ad.page_name || "Unbekannt",
       pageId: ad.page_id,
       adText: ad.ad_creative_bodies?.[0],
-      headline: ad.ad_creative_link_titles?.[0],
-      imageUrl: ad.ad_snapshot_url,
+      adTitle: ad.ad_creative_link_titles?.[0],
+      adImageUrl: ad.ad_snapshot_url,
       startDate: ad.ad_delivery_start_time,
-      endDate: ad.ad_delivery_stop_time,
-      country,
-      searchQuery: query,
-      rawData: ad,
     });
   };
 
@@ -148,8 +144,8 @@ export default function AdLibrary() {
     setGeneratingFor(ad.id);
     generateTranscriptMutation.mutate({
       adText,
-      headline: ad.ad_creative_link_titles?.[0],
-      pageName: ad.page_name,
+      headline: ad.ad_creative_link_titles?.[0] ?? undefined,
+      pageName: ad.page_name ?? undefined,
     });
   };
 

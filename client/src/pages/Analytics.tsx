@@ -107,14 +107,14 @@ export default function Analytics() {
 
   const syncCampaignsMutation = trpc.meta.syncCampaigns.useMutation({
     onSuccess: (data) => {
-      toast.success(`${data.count} Kampagnen synchronisiert`);
+      toast.success(`${data.synced} Kampagnen synchronisiert`);
     },
     onError: (err) => toast.error(err.message),
   });
 
   const syncAdsMutation = trpc.meta.syncAds.useMutation({
     onSuccess: (data) => {
-      toast.success(`${data.count} Ads synchronisiert`);
+      toast.success(`${data.synced} Ads synchronisiert`);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -214,7 +214,7 @@ export default function Analytics() {
             </Button>
             <Button
               size="sm"
-              onClick={() => insightsMutation.mutate({})}
+              onClick={() => insightsMutation.mutate()}
               disabled={insightsMutation.isPending || !ads?.length}
             >
               {insightsMutation.isPending ? (

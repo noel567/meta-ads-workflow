@@ -16,8 +16,10 @@ import {
   getBrandSettings, upsertBrandSettings,
   getGoogleDriveConnection, upsertGoogleDriveConnection, deleteGoogleDriveConnection,
   getScanLogs, createScanLog, updateScanLog,
+  createHeygenVideo, getHeygenVideos, getHeygenVideosByBatch, updateHeygenVideo, getHeygenVideoByHeygenId,
 } from "./db";
 import { runDailyScan, startScheduler } from "./scheduler";
+import { ENV } from "./_core/env";
 
 // ─── Meta API Helper ──────────────────────────────────────────────────────────
 
@@ -50,13 +52,10 @@ async function searchAdLibrary(query: string, country: string, limit = 20, acces
   return data;
 }
 
-// ─── Google Drive Helper ──────────────────────────────────────────────────────
+// ─── Google Drive Helpers ─────────────────────────────────────────────────────
 
 async function createGoogleDriveFolder(accessToken: string, name: string, parentId?: string) {
-  const metadata: Record<string, unknown> = {
-    name,
-    mimeType: "application/vnd.google-apps.folder",
-  };
+  const metadata: Record<string, unknown> = { name, mimeType: "application/vnd.google-apps.folder" };
   if (parentId) metadata.parents = [parentId];
   const res = await fetch("https://www.googleapis.com/drive/v3/files", {
     method: "POST",
@@ -69,31 +68,16 @@ async function createGoogleDriveFolder(accessToken: string, name: string, parent
 }
 
 async function uploadGoogleDriveFile(accessToken: string, name: string, content: string, folderId?: string) {
-  const metadata: Record<string, unknown> = {
-    name,
-    mimeType: "application/vnd.google-apps.document",
-  };
+  const metadata: Record<string, unknown> = { name, mimeType: "application/vnd.google-apps.document" };
   if (folderId) metadata.parents = [folderId];
-
   const boundary = "batch_boundary_xyz";
   const body = [
-    `--${boundary}`,
-    "Content-Type: application/json; charset=UTF-8",
-    "",
-    JSON.stringify(metadata),
-    `--${boundary}`,
-    "Content-Type: text/plain; charset=UTF-8",
-    "",
-    content,
-    `--${boundary}--`,
+    `--${boundary}`, "Content-Type: application/json; charset=UTF-8", "", JSON.stringify(metadata),
+    `--${boundary}`, "Content-Type: text/plain; charset=UTF-8", "", content, `--${boundary}--`,
   ].join("\r\n");
-
   const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": `multipart/related; boundary=${boundary}`,
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
     body,
   });
   const data = await res.json();
@@ -108,9 +92,7 @@ async function listGoogleDriveFolders(accessToken: string, parentId?: string) {
   const url = new URL("https://www.googleapis.com/drive/v3/files");
   url.searchParams.set("q", q);
   url.searchParams.set("fields", "files(id,name)");
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || "Google Drive list error");
   return data.files as Array<{ id: string; name: string }>;
@@ -119,13 +101,9 @@ async function listGoogleDriveFolders(accessToken: string, parentId?: string) {
 // ─── KI Batch Generator ───────────────────────────────────────────────────────
 
 async function generateBatchFromAdText(
-  adText: string,
-  brandContext: string,
-  competitorName: string,
-  language = "de"
+  adText: string, brandContext: string, competitorName: string, language = "de"
 ): Promise<{ body: string; cta: string; hook1: string; hook2: string; hook3: string; heygenScript: string }> {
   const langInstruction = language === "de" ? "Antworte ausschließlich auf Deutsch." : `Respond in ${language}.`;
-
   const response = await invokeLLM({
     messages: [
       {
@@ -144,14 +122,7 @@ Ein Batch besteht aus:
 Kontext Easy Signals: ${brandContext}
 
 Antworte NUR im folgenden JSON-Format:
-{
-  "body": "...",
-  "cta": "...",
-  "hook1": "...",
-  "hook2": "...",
-  "hook3": "...",
-  "heygenScript": "..."
-}`,
+{"body":"...","cta":"...","hook1":"...","hook2":"...","hook3":"...","heygenScript":"..."}`,
       },
       {
         role: "user",
@@ -166,11 +137,8 @@ Antworte NUR im folgenden JSON-Format:
         schema: {
           type: "object",
           properties: {
-            body: { type: "string" },
-            cta: { type: "string" },
-            hook1: { type: "string" },
-            hook2: { type: "string" },
-            hook3: { type: "string" },
+            body: { type: "string" }, cta: { type: "string" },
+            hook1: { type: "string" }, hook2: { type: "string" }, hook3: { type: "string" },
             heygenScript: { type: "string" },
           },
           required: ["body", "cta", "hook1", "hook2", "hook3", "heygenScript"],
@@ -179,7 +147,6 @@ Antworte NUR im folgenden JSON-Format:
       },
     },
   });
-
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("KI-Antwort war leer");
   return JSON.parse(typeof content === "string" ? content : JSON.stringify(content));
@@ -221,752 +188,592 @@ function generateMockAdLibraryResults(query: string, _country: string) {
   }));
 }
 
+// ─── HeyGen Helper ────────────────────────────────────────────────────────────
+
+const HEYGEN_BASE = "https://api.heygen.com";
+
+async function heygenFetch(path: string, method = "GET", body?: unknown): Promise<any> {
+  const apiKey = ENV.heygenApiKey;
+  if (!apiKey) throw new Error("HeyGen API-Key nicht konfiguriert. Bitte in den Einstellungen hinterlegen.");
+  const res = await fetch(`${HEYGEN_BASE}${path}`, {
+    method,
+    headers: {
+      "x-api-key": apiKey,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+  return data;
+}
+
+// ─── Sub-Routers ──────────────────────────────────────────────────────────────
+
+const metaRouter = router({
+  getConnection: protectedProcedure.query(async ({ ctx }) => {
+    const conn = await getMetaConnection(ctx.user.id);
+    if (!conn) return null;
+    return { id: conn.id, adAccountId: conn.adAccountId, adAccountName: conn.adAccountName, appId: conn.appId, isActive: conn.isActive, createdAt: conn.createdAt };
+  }),
+  connect: protectedProcedure
+    .input(z.object({ accessToken: z.string().min(1), adAccountId: z.string().min(1), appId: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const accountId = input.adAccountId.startsWith("act_") ? input.adAccountId : `act_${input.adAccountId}`;
+      let accountName = accountId;
+      try {
+        const data = await fetchMetaAPI(`/${accountId}`, input.accessToken, { fields: "name,account_status" });
+        accountName = data.name || accountId;
+      } catch {
+        throw new Error("Ungültiger Access Token oder Ad Account ID.");
+      }
+      await upsertMetaConnection({ userId: ctx.user.id, accessToken: input.accessToken, adAccountId: accountId, adAccountName: accountName, appId: input.appId || null, isActive: true });
+      return { success: true, adAccountName: accountName };
+    }),
+  disconnect: protectedProcedure.mutation(async ({ ctx }) => {
+    await deleteMetaConnection(ctx.user.id);
+    await deleteCampaignsByUser(ctx.user.id);
+    await deleteAdsByUser(ctx.user.id);
+    return { success: true };
+  }),
+  syncCampaigns: protectedProcedure.mutation(async ({ ctx }) => {
+    const conn = await getMetaConnection(ctx.user.id);
+    if (!conn) throw new Error("Keine Meta-Verbindung gefunden.");
+    const data = await fetchMetaAPI(`/${conn.adAccountId}/campaigns`, conn.accessToken, {
+      fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights{spend,impressions,clicks,ctr,cpc,reach}",
+      limit: "50",
+    });
+    const campaigns = (data.data || []).map((c: any) => ({
+      userId: ctx.user.id,
+      metaId: c.id,
+      name: c.name,
+      status: c.status?.toLowerCase() || "unknown",
+      objective: c.objective || null,
+      dailyBudget: c.daily_budget ? parseFloat(c.daily_budget) / 100 : null,
+      lifetimeBudget: c.lifetime_budget ? parseFloat(c.lifetime_budget) / 100 : null,
+      startTime: c.start_time ? new Date(c.start_time) : null,
+      stopTime: c.stop_time ? new Date(c.stop_time) : null,
+      spend: c.insights?.data?.[0]?.spend ? parseFloat(c.insights.data[0].spend) : null,
+      impressions: c.insights?.data?.[0]?.impressions ? parseInt(c.insights.data[0].impressions) : null,
+      clicks: c.insights?.data?.[0]?.clicks ? parseInt(c.insights.data[0].clicks) : null,
+      ctr: c.insights?.data?.[0]?.ctr ? parseFloat(c.insights.data[0].ctr) : null,
+      cpc: c.insights?.data?.[0]?.cpc ? parseFloat(c.insights.data[0].cpc) : null,
+      reach: c.insights?.data?.[0]?.reach ? parseInt(c.insights.data[0].reach) : null,
+    }));
+    await upsertCampaigns(ctx.user.id, campaigns);
+    return { synced: campaigns.length };
+  }),
+  syncAds: protectedProcedure.mutation(async ({ ctx }) => {
+    const conn = await getMetaConnection(ctx.user.id);
+    if (!conn) throw new Error("Keine Meta-Verbindung gefunden.");
+    const campaignsData = await getCampaigns(ctx.user.id);
+    let totalSynced = 0;
+    for (const campaign of campaignsData.slice(0, 10)) {
+      try {
+        const data = await fetchMetaAPI(`/${campaign.metaId}/ads`, conn.accessToken, {
+          fields: "id,name,status,creative{title,body,image_url},insights{spend,impressions,clicks,ctr,cpc,reach,actions}",
+          limit: "20",
+        });
+        const ads = (data.data || []).map((ad: any) => {
+          const insights = ad.insights?.data?.[0] || {};
+          const purchaseAction = insights.actions?.find((a: any) => a.action_type === "purchase");
+          const spend = insights.spend ? parseFloat(insights.spend) : null;
+          const purchaseValue = purchaseAction?.value ? parseFloat(purchaseAction.value) : null;
+          return {
+            userId: ctx.user.id,
+            campaignId: campaign.id,
+            metaId: ad.id,
+            name: ad.name,
+            status: ad.status?.toLowerCase() || "unknown",
+            adsetId: null,
+            creativeTitle: ad.creative?.title || null,
+            creativeBody: ad.creative?.body || null,
+            creativeImageUrl: ad.creative?.image_url || null,
+            spend,
+            impressions: insights.impressions ? parseInt(insights.impressions) : null,
+            clicks: insights.clicks ? parseInt(insights.clicks) : null,
+            ctr: insights.ctr ? parseFloat(insights.ctr) : null,
+            cpc: insights.cpc ? parseFloat(insights.cpc) : null,
+            reach: insights.reach ? parseInt(insights.reach) : null,
+            roas: spend && purchaseValue ? purchaseValue / spend : null,
+          };
+        });
+        await upsertAds(ctx.user.id, ads);
+        totalSynced += ads.length;
+      } catch { /* skip failed campaigns */ }
+    }
+    return { synced: totalSynced };
+  }),
+  getCampaigns: protectedProcedure.query(async ({ ctx }) => getCampaigns(ctx.user.id)),
+  getAds: protectedProcedure.query(async ({ ctx }) => getAds(ctx.user.id)),
+});
+
+const analyticsRouter = router({
+  getAds: protectedProcedure.query(async ({ ctx }) => getAds(ctx.user.id)),
+  getCampaigns: protectedProcedure.query(async ({ ctx }) => getCampaigns(ctx.user.id)),
+  getKPIs: protectedProcedure.query(async ({ ctx }) => {
+    const allAds = await getAds(ctx.user.id);
+    const totalSpend = allAds.reduce((sum, ad) => sum + (ad.spend || 0), 0);
+    const totalImpressions = allAds.reduce((sum, ad) => sum + (ad.impressions || 0), 0);
+    const totalClicks = allAds.reduce((sum, ad) => sum + (ad.clicks || 0), 0);
+    const adsWithCtr = allAds.filter(a => a.ctr);
+    const avgCTR = adsWithCtr.length > 0 ? allAds.reduce((sum, ad) => sum + (ad.ctr || 0), 0) / adsWithCtr.length : 0;
+    const adsWithCpc = allAds.filter(a => a.cpc);
+    const avgCPC = adsWithCpc.length > 0 ? allAds.reduce((sum, ad) => sum + (ad.cpc || 0), 0) / adsWithCpc.length : 0;
+    const adsWithRoas = allAds.filter(a => a.roas);
+    const avgROAS = adsWithRoas.length > 0 ? allAds.reduce((sum, ad) => sum + (ad.roas || 0), 0) / adsWithRoas.length : 0;
+    return { totalSpend, totalImpressions, totalClicks, avgCTR, avgCPC, avgROAS, adCount: allAds.length };
+  }),
+  getAIInsights: protectedProcedure.mutation(async ({ ctx }) => {
+    const allAds = await getAds(ctx.user.id);
+    if (allAds.length === 0) return { insights: "Keine Ads gefunden. Bitte synchronisiere zuerst deine Meta Ads." };
+    const topAds = allAds.sort((a, b) => (b.spend || 0) - (a.spend || 0)).slice(0, 10);
+    const adSummary = topAds.map(ad =>
+      `Ad: "${ad.name}" | Status: ${ad.status} | Spend: €${ad.spend?.toFixed(2) || "0"} | CTR: ${ad.ctr?.toFixed(2) || "0"}% | CPC: €${ad.cpc?.toFixed(2) || "0"} | ROAS: ${ad.roas?.toFixed(2) || "0"}`
+    ).join("\n");
+    const response = await invokeLLM({
+      messages: [
+        { role: "system", content: "Du bist ein erfahrener Performance-Marketing-Analyst. Analysiere die Meta Ads Performance-Daten und gib konkrete, umsetzbare Optimierungsempfehlungen auf Deutsch." },
+        { role: "user", content: `Analysiere diese Meta Ads Performance-Daten und gib mir:\n1. Was performt gut und warum\n2. Was verbessert werden sollte\n3. Konkrete nächste Schritte\n\nAds-Daten:\n${adSummary}` },
+      ],
+    });
+    return { insights: response.choices[0]?.message?.content as string || "Keine Insights verfügbar." };
+  }),
+});
+
+const adLibraryRouter = router({
+  search: protectedProcedure
+    .input(z.object({ query: z.string().min(1), country: z.string().default("DE"), limit: z.number().default(20) }))
+    .mutation(async ({ ctx, input }) => {
+      const conn = await getMetaConnection(ctx.user.id);
+      try {
+        const data = await searchAdLibrary(input.query, input.country, input.limit, conn?.accessToken);
+        return { results: data.data || [], isMock: false };
+      } catch {
+        return { results: generateMockAdLibraryResults(input.query, input.country), isMock: true };
+      }
+    }),
+  saveAd: protectedProcedure
+    .input(z.object({
+      adId: z.string(), pageName: z.string(), pageId: z.string().optional(),
+      adText: z.string().optional(), adTitle: z.string().optional(),
+      adImageUrl: z.string().optional(), adSnapshotUrl: z.string().optional(),
+      impressionsLower: z.number().optional(), impressionsUpper: z.number().optional(),
+      startDate: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await saveCompetitorAd({
+        userId: ctx.user.id,
+        metaAdId: input.adId,
+        pageName: input.pageName,
+        pageId: input.pageId || null,
+        adText: input.adText || null,
+        headline: input.adTitle || null,
+        imageUrl: input.adImageUrl || null,
+        startDate: input.startDate || null,
+        isProcessed: false,
+        rawData: input.adSnapshotUrl ? { snapshotUrl: input.adSnapshotUrl, impressionsLower: input.impressionsLower, impressionsUpper: input.impressionsUpper } : null,
+      });
+      return { success: true };
+    }),
+  getSaved: protectedProcedure.query(async ({ ctx }) => getCompetitorAds(ctx.user.id)),
+  deleteSaved: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => { await deleteCompetitorAd(input.id, ctx.user.id); return { success: true }; }),
+});
+
+const transcriptsRouter = router({
+  list: protectedProcedure.query(async ({ ctx }) => getTranscripts(ctx.user.id)),
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => getTranscriptById(input.id, ctx.user.id)),
+  create: protectedProcedure
+    .input(z.object({ title: z.string().min(1), content: z.string(), sourceId: z.number().optional(), sourceType: z.enum(["competitor_ad", "manual", "ai_generated", "batch"]).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      await createTranscript({ userId: ctx.user.id, title: input.title, content: input.content, sourceId: input.sourceId || null, sourceType: input.sourceType || "manual" });
+      return { success: true };
+    }),
+  update: protectedProcedure
+    .input(z.object({ id: z.number(), title: z.string().optional(), content: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => { await updateTranscript(input.id, ctx.user.id, input); return { success: true }; }),
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => { await deleteTranscript(input.id, ctx.user.id); return { success: true }; }),
+  generateFromAd: protectedProcedure
+    .input(z.object({ adId: z.number().optional(), adText: z.string(), pageName: z.string().optional(), headline: z.string().optional(), language: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const sourceName = input.pageName || "Unbekannt";
+      const response = await invokeLLM({
+        messages: [
+          { role: "system", content: "Du bist ein erfahrener Werbetexter. Erstelle ein professionelles Video-Skript auf Deutsch aus dem gegebenen Ad-Text. Das Skript soll natürlich klingen, für einen Teleprompter geeignet sein und die Kernbotschaft des Originals bewahren." },
+          { role: "user", content: `Erstelle ein Video-Skript aus diesem Ad-Text von ${sourceName}:\n\n${input.adText}\n\nDas Skript soll:\n- Natürlich und authentisch klingen\n- Für einen Teleprompter formatiert sein\n- Die Kernbotschaft übertragen\n- Auf Deutsch sein (auch wenn das Original auf Englisch ist)` },
+        ],
+      });
+      const content = response.choices[0]?.message?.content as string;
+      await createTranscript({ userId: ctx.user.id, title: `Transkript: ${sourceName}`, content, sourceId: input.adId || null, sourceType: "ai_generated" });
+      if (input.adId) await markCompetitorAdProcessed(input.adId);
+      return { success: true, content };
+    }),
+});
+
+const documentsRouter = router({
+  list: protectedProcedure.query(async ({ ctx }) => getDocuments(ctx.user.id)),
+  export: protectedProcedure
+    .input(z.object({ transcriptId: z.number(), title: z.string(), format: z.enum(["markdown", "pdf"]).default("markdown") }))
+    .mutation(async ({ ctx, input }) => {
+      const transcript = await getTranscriptById(input.transcriptId, ctx.user.id);
+      if (!transcript) throw new Error("Transkript nicht gefunden.");
+      const content = `# ${input.title}\n\n${transcript.content}\n\n---\n*Erstellt am ${new Date().toLocaleDateString("de-DE")} mit Meta Ads Creative Workflow*`;
+      await createDocument({ userId: ctx.user.id, sourceId: input.transcriptId, title: input.title, content, format: input.format });
+      return { success: true, content };
+    }),
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => { await deleteDocument(input.id, ctx.user.id); return { success: true }; }),
+});
+
+const competitorsRouter = router({
+  list: protectedProcedure.query(async ({ ctx }) => getCompetitors(ctx.user.id)),
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => getCompetitorById(input.id, ctx.user.id)),
+  create: protectedProcedure
+    .input(z.object({ name: z.string().min(1), pageId: z.string().optional(), pageName: z.string().optional(), country: z.string().optional(), language: z.string().optional(), notes: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      await createCompetitor({ userId: ctx.user.id, name: input.name, pageId: input.pageId || null, pageName: input.pageName || null, country: input.country || "DE", language: input.language || "de", notes: input.notes || null, isActive: true });
+      return { success: true };
+    }),
+  update: protectedProcedure
+    .input(z.object({ id: z.number(), name: z.string().optional(), pageId: z.string().optional(), isActive: z.boolean().optional(), notes: z.string().optional(), lastScannedAt: z.date().optional() }))
+    .mutation(async ({ ctx, input }) => { await updateCompetitor(input.id, ctx.user.id, input); return { success: true }; }),
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => { await deleteCompetitor(input.id, ctx.user.id); return { success: true }; }),
+  scanAds: protectedProcedure
+    .input(z.object({ competitorId: z.number(), query: z.string(), country: z.string().default("DE") }))
+    .mutation(async ({ ctx, input }) => {
+      const competitor = await getCompetitorById(input.competitorId, ctx.user.id);
+      if (!competitor) throw new Error("Konkurrent nicht gefunden.");
+      const conn = await getMetaConnection(ctx.user.id);
+      let results: any[];
+      try {
+        const data = await searchAdLibrary(input.query, input.country, 10, conn?.accessToken);
+        results = data.data || [];
+      } catch {
+        results = generateMockAdLibraryResults(input.query, input.country);
+      }
+      for (const ad of results) {
+        const adText = ad.ad_creative_bodies?.[0] || ad.ad_creative_link_titles?.[0] || "";
+        if (!adText) continue;
+        await saveCompetitorAd({
+          userId: ctx.user.id,
+          metaAdId: ad.id,
+          pageName: competitor.name,
+          pageId: competitor.pageId || null,
+          adText,
+          headline: ad.ad_creative_link_titles?.[0] || null,
+          imageUrl: null,
+          startDate: ad.ad_delivery_start_time || null,
+          isProcessed: false,
+          rawData: { snapshotUrl: ad.ad_snapshot_url, impressionsLower: ad.impressions?.lower_bound, impressionsUpper: ad.impressions?.upper_bound },
+        });
+      }
+      await updateCompetitor(input.competitorId, ctx.user.id, { lastScannedAt: new Date() });
+      return { found: results.length };
+    }),
+  getScanLogs: protectedProcedure.query(async ({ ctx }) => getScanLogs(ctx.user.id)),
+});
+
+const batchesRouter = router({
+  list: protectedProcedure.query(async ({ ctx }) => getAdBatches(ctx.user.id)),
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => getAdBatchById(input.id, ctx.user.id)),
+  generate: protectedProcedure
+    .input(z.object({ competitorAdId: z.number(), adText: z.string(), competitorName: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const brand = await getBrandSettings(ctx.user.id);
+      const brandContext = brand
+        ? `Marke: ${brand.brandName}. ${brand.brandDescription || ""}. Zielgruppe: ${brand.targetAudience || "Unternehmer und Marketer"}. USPs: ${brand.uniqueSellingPoints || "Einfachheit, Ergebnisse, Automatisierung"}. Ton: ${brand.toneOfVoice || "professionell und direkt"}.`
+        : "Easy Signals – Performance Marketing Automatisierung für Unternehmer.";
+      const batch = await generateBatchFromAdText(input.adText, brandContext, input.competitorName);
+      await createAdBatch({
+        userId: ctx.user.id,
+        title: `${input.competitorName} – ${new Date().toLocaleDateString("de-DE")}`,
+        sourceAdId: input.competitorAdId,
+        competitorName: input.competitorName,
+        body: batch.body,
+        cta: batch.cta,
+        hook1: batch.hook1,
+        hook2: batch.hook2,
+        hook3: batch.hook3,
+        heygenScript: batch.heygenScript,
+        status: "ready",
+      });
+      return { success: true, batch };
+    }),
+  update: protectedProcedure
+    .input(z.object({ id: z.number(), body: z.string().optional(), cta: z.string().optional(), hook1: z.string().optional(), hook2: z.string().optional(), hook3: z.string().optional(), heygenScript: z.string().optional(), status: z.enum(["draft", "ready", "exported", "used"]).optional() }))
+    .mutation(async ({ ctx, input }) => { await updateAdBatch(input.id, ctx.user.id, input); return { success: true }; }),
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => { await deleteAdBatch(input.id, ctx.user.id); return { success: true }; }),
+});
+
+const brandRouter = router({
+  get: protectedProcedure.query(async ({ ctx }) => getBrandSettings(ctx.user.id)),
+  upsert: protectedProcedure
+    .input(z.object({
+      brandName: z.string().optional(), brandDescription: z.string().optional(),
+      targetAudience: z.string().optional(), toneOfVoice: z.string().optional(),
+      uniqueSellingPoints: z.string().optional(), callToActionDefault: z.string().optional(),
+      language: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => { await upsertBrandSettings({ userId: ctx.user.id, ...input }); return { success: true }; }),
+});
+
+const googleDriveRouter = router({
+  getConnection: protectedProcedure.query(async ({ ctx }) => {
+    const conn = await getGoogleDriveConnection(ctx.user.id);
+    if (!conn) return null;
+    return { id: conn.id, rootFolderName: conn.rootFolderName, isActive: conn.isActive, updatedAt: conn.updatedAt };
+  }),
+  connect: protectedProcedure
+    .input(z.object({ accessToken: z.string().min(1), refreshToken: z.string().optional(), rootFolderName: z.string().default("Easy Signals Ads") }))
+    .mutation(async ({ ctx, input }) => {
+      let rootFolderId: string | null = null;
+      try {
+        const folders = await listGoogleDriveFolders(input.accessToken);
+        const existing = folders.find(f => f.name === input.rootFolderName);
+        if (existing) {
+          rootFolderId = existing.id;
+        } else {
+          const created = await createGoogleDriveFolder(input.accessToken, input.rootFolderName);
+          rootFolderId = created.id;
+        }
+      } catch { /* ignore folder creation errors */ }
+      await upsertGoogleDriveConnection({
+        userId: ctx.user.id, accessToken: input.accessToken,
+        refreshToken: input.refreshToken || null, rootFolderId, rootFolderName: input.rootFolderName, isActive: true,
+      });
+      return { success: true, rootFolderId };
+    }),
+  disconnect: protectedProcedure.mutation(async ({ ctx }) => {
+    await deleteGoogleDriveConnection(ctx.user.id);
+    return { success: true };
+  }),
+  uploadBatch: protectedProcedure
+    .input(z.object({ batchId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const conn = await getGoogleDriveConnection(ctx.user.id);
+      if (!conn || !conn.isActive) throw new Error("Keine Google Drive Verbindung.");
+      const batch = await getAdBatchById(input.batchId, ctx.user.id);
+      if (!batch) throw new Error("Batch nicht gefunden.");
+      const dateStr = new Date().toISOString().split("T")[0];
+      let dateFolderId = conn.rootFolderId || undefined;
+      try {
+        const dateFolders = await listGoogleDriveFolders(conn.accessToken, conn.rootFolderId || undefined);
+        const existingDate = dateFolders.find(f => f.name === dateStr);
+        if (existingDate) {
+          dateFolderId = existingDate.id;
+        } else {
+          const dateFolder = await createGoogleDriveFolder(conn.accessToken, dateStr, conn.rootFolderId || undefined);
+          dateFolderId = dateFolder.id;
+        }
+        const competitorFolders = await listGoogleDriveFolders(conn.accessToken, dateFolderId);
+        const existingComp = competitorFolders.find(f => f.name === batch.competitorName);
+        let competitorFolderId: string;
+        if (existingComp) {
+          competitorFolderId = existingComp.id;
+        } else {
+          const compFolder = await createGoogleDriveFolder(conn.accessToken, batch.competitorName ?? "Unknown", dateFolderId);
+          competitorFolderId = compFolder.id;
+        }
+        const content = `# Ad Batch: ${batch.competitorName}\n\n**Datum:** ${dateStr}\n\n## Body\n${batch.body}\n\n## CTA\n${batch.cta}\n\n## Hook 1\n${batch.hook1}\n\n## Hook 2\n${batch.hook2}\n\n## Hook 3\n${batch.hook3}\n\n## HeyGen Skript\n${batch.heygenScript}`;
+        const file = await uploadGoogleDriveFile(conn.accessToken, `${batch.competitorName}_${dateStr}.md`, content, competitorFolderId);
+        await updateAdBatch(input.batchId, ctx.user.id, { status: "exported" });
+        return { success: true, fileId: file.id, webViewLink: file.webViewLink };
+      } catch (err: any) {
+        throw new Error(`Google Drive Upload fehlgeschlagen: ${err.message}`);
+      }
+    }),
+  listFolders: protectedProcedure.query(async ({ ctx }) => {
+    const conn = await getGoogleDriveConnection(ctx.user.id);
+    if (!conn) return [];
+    return listGoogleDriveFolders(conn.accessToken, conn.rootFolderId || undefined);
+  }),
+});
+
+const automationRouter = router({
+  runScan: protectedProcedure.mutation(async ({ ctx }) => {
+    const result = await runDailyScan(ctx.user.id);
+    return result;
+  }),
+  startScheduler: protectedProcedure.mutation(async ({ ctx }) => {
+    startScheduler(ctx.user.id);
+    return { success: true, message: "Täglicher Scan-Scheduler gestartet (07:00 UTC)." };
+  }),
+  getScanLogs: protectedProcedure.query(async ({ ctx }) => getScanLogs(ctx.user.id, 20)),
+});
+
+const dashboardRouter = router({
+  getStats: protectedProcedure.query(async ({ ctx }) => {
+    const [campaignsData, allAds, competitorAdsData, transcriptsData, documentsData, competitorsData, batchesData] = await Promise.all([
+      getCampaigns(ctx.user.id),
+      getAds(ctx.user.id),
+      getCompetitorAds(ctx.user.id),
+      getTranscripts(ctx.user.id),
+      getDocuments(ctx.user.id),
+      getCompetitors(ctx.user.id),
+      getAdBatches(ctx.user.id),
+    ]);
+    const totalSpend = allAds.reduce((sum, ad) => sum + (ad.spend || 0), 0);
+    const adsWithCtr = allAds.filter(a => a.ctr);
+    const avgCTR = adsWithCtr.length > 0 ? allAds.reduce((sum, ad) => sum + (ad.ctr || 0), 0) / adsWithCtr.length : 0;
+    const adsWithRoas = allAds.filter(a => a.roas);
+    const avgROAS = adsWithRoas.length > 0 ? allAds.reduce((sum, ad) => sum + (ad.roas || 0), 0) / adsWithRoas.length : 0;
+    const todayBatches = batchesData.filter(b => {
+      const today = new Date();
+      const batchDate = new Date(b.generatedAt);
+      return batchDate.toDateString() === today.toDateString();
+    });
+    return {
+      campaigns: campaignsData.length,
+      ads: allAds.length,
+      competitorAds: competitorAdsData.length,
+      transcripts: transcriptsData.length,
+      documents: documentsData.length,
+      competitors: competitorsData.length,
+      batches: batchesData.length,
+      todayBatches: todayBatches.length,
+      totalSpend,
+      avgCTR: isNaN(avgCTR) ? 0 : avgCTR,
+      avgROAS: isNaN(avgROAS) ? 0 : avgROAS,
+      recentTranscripts: transcriptsData.slice(0, 3),
+      recentAds: allAds.slice(0, 5),
+      recentBatches: batchesData.slice(0, 3),
+      activeCompetitors: competitorsData.filter(c => c.isActive).length,
+    };
+  }),
+});
+
+const heygenRouter = router({
+  getAvatars: protectedProcedure.query(async () => {
+    const data = await heygenFetch("/v2/avatars");
+    const avatars = data?.data?.avatars ?? [];
+    return avatars.map((a: any) => ({
+      id: a.avatar_id as string,
+      name: (a.avatar_name ?? a.avatar_id) as string,
+      previewImageUrl: (a.preview_image_url ?? null) as string | null,
+      previewVideoUrl: (a.preview_video_url ?? null) as string | null,
+    }));
+  }),
+  getVoices: protectedProcedure.query(async () => {
+    const data = await heygenFetch("/v2/voices");
+    const voices = data?.data?.voices ?? [];
+    return voices.map((v: any) => ({
+      id: v.voice_id as string,
+      name: (v.name ?? v.voice_id) as string,
+      language: (v.language ?? "en") as string,
+      gender: (v.gender ?? null) as string | null,
+      preview_audio: (v.preview_audio ?? null) as string | null,
+    }));
+  }),
+  createVideo: protectedProcedure
+    .input(z.object({
+      script: z.string().min(1).max(5000),
+      avatarId: z.string(),
+      avatarName: z.string().optional(),
+      voiceId: z.string(),
+      voiceName: z.string().optional(),
+      title: z.string().optional(),
+      batchId: z.number().optional(),
+      aspectRatio: z.enum(["16:9", "9:16"]).default("9:16"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const body = {
+        title: input.title ?? "Easy Signals Ad",
+        avatar_id: input.avatarId,
+        script: input.script,
+        voice_id: input.voiceId,
+        resolution: "1080p",
+        aspect_ratio: input.aspectRatio,
+        voice_settings: { speed: 1, pitch: 0 },
+      };
+      const data = await heygenFetch("/v2/videos", "POST", body);
+      const heygenVideoId = data?.data?.video_id as string;
+      if (!heygenVideoId) throw new Error("HeyGen hat keine Video-ID zurückgegeben.");
+      await createHeygenVideo({
+        userId: ctx.user.id,
+        batchId: input.batchId ?? null,
+        heygenVideoId,
+        title: input.title ?? "Easy Signals Ad",
+        script: input.script,
+        avatarId: input.avatarId,
+        avatarName: input.avatarName ?? null,
+        voiceId: input.voiceId,
+        voiceName: input.voiceName ?? null,
+        status: "pending",
+      });
+      return { heygenVideoId, message: "Video wird erstellt. Status kann abgerufen werden." };
+    }),
+  getVideoStatus: protectedProcedure
+    .input(z.object({ heygenVideoId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const data = await heygenFetch(`/v1/video_status.get?video_id=${input.heygenVideoId}`);
+      const status = (data?.data?.status as string) ?? "pending";
+      const videoUrl = data?.data?.video_url as string | undefined;
+      const thumbnailUrl = data?.data?.thumbnail_url as string | undefined;
+      const duration = data?.data?.duration as number | undefined;
+      const errorMsg = data?.data?.error as string | undefined;
+      const dbRecord = await getHeygenVideoByHeygenId(input.heygenVideoId);
+      if (dbRecord) {
+        await updateHeygenVideo(dbRecord.id, {
+          status: status as any,
+          videoUrl: videoUrl ?? null,
+          thumbnailUrl: thumbnailUrl ?? null,
+          duration: duration ?? null,
+          errorMessage: errorMsg ?? null,
+        });
+      }
+      return { status, videoUrl, thumbnailUrl, duration, error: errorMsg };
+    }),
+  getVideos: protectedProcedure.query(async ({ ctx }) => getHeygenVideos(ctx.user.id) as Promise<any[]>),
+  getVideosByBatch: protectedProcedure
+    .input(z.object({ batchId: z.number() }))
+    .query(async ({ ctx, input }) => getHeygenVideosByBatch(ctx.user.id, input.batchId) as Promise<any[]>),
+  testConnection: protectedProcedure.query(async () => {
+    const data = await heygenFetch("/v2/user/remaining_quota");
+    const quota = (data?.data?.remaining_quota as number) ?? 0;
+    return { connected: true, remainingQuota: quota };
+  }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 
 export const appRouter = router({
   system: systemRouter,
-
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
   }),
-
-  // ─── Meta Connection ────────────────────────────────────────────────────────
-
-  meta: router({
-    getConnection: protectedProcedure.query(async ({ ctx }) => {
-      const conn = await getMetaConnection(ctx.user.id);
-      if (!conn) return null;
-      return { id: conn.id, adAccountId: conn.adAccountId, adAccountName: conn.adAccountName, appId: conn.appId, isActive: conn.isActive, createdAt: conn.createdAt };
-    }),
-
-    connect: protectedProcedure
-      .input(z.object({ accessToken: z.string().min(1), adAccountId: z.string().min(1), appId: z.string().optional() }))
-      .mutation(async ({ ctx, input }) => {
-        const accountId = input.adAccountId.startsWith("act_") ? input.adAccountId : `act_${input.adAccountId}`;
-        let accountName = accountId;
-        try {
-          const data = await fetchMetaAPI(`/${accountId}`, input.accessToken, { fields: "name,account_status" });
-          accountName = data.name || accountId;
-        } catch {
-          throw new Error("Ungültiger Access Token oder Ad Account ID.");
-        }
-        await upsertMetaConnection({ userId: ctx.user.id, accessToken: input.accessToken, adAccountId: accountId, adAccountName: accountName, appId: input.appId || null, isActive: true });
-        return { success: true, adAccountName: accountName };
-      }),
-
-    disconnect: protectedProcedure.mutation(async ({ ctx }) => {
-      await deleteMetaConnection(ctx.user.id);
-      await deleteCampaignsByUser(ctx.user.id);
-      await deleteAdsByUser(ctx.user.id);
-      return { success: true };
-    }),
-
-    syncCampaigns: protectedProcedure.mutation(async ({ ctx }) => {
-      const conn = await getMetaConnection(ctx.user.id);
-      if (!conn) throw new Error("Keine Meta-Verbindung gefunden.");
-      const data = await fetchMetaAPI(`/${conn.adAccountId}/campaigns`, conn.accessToken, {
-        fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time",
-        limit: "100",
-      });
-      const campaignData = (data.data || []).map((c: Record<string, unknown>) => ({
-        userId: ctx.user.id, metaId: c.id as string, name: c.name as string, status: c.status as string,
-        objective: c.objective as string,
-        dailyBudget: c.daily_budget ? parseFloat(c.daily_budget as string) / 100 : null,
-        lifetimeBudget: c.lifetime_budget ? parseFloat(c.lifetime_budget as string) / 100 : null,
-        startTime: c.start_time ? new Date(c.start_time as string) : null,
-        stopTime: c.stop_time ? new Date(c.stop_time as string) : null,
-        rawData: c, syncedAt: new Date(),
-      }));
-      await deleteCampaignsByUser(ctx.user.id);
-      if (campaignData.length > 0) await upsertCampaigns(ctx.user.id, campaignData);
-      return { success: true, count: campaignData.length };
-    }),
-
-    syncAds: protectedProcedure.mutation(async ({ ctx }) => {
-      const conn = await getMetaConnection(ctx.user.id);
-      if (!conn) throw new Error("Keine Meta-Verbindung gefunden.");
-      const data = await fetchMetaAPI(`/${conn.adAccountId}/ads`, conn.accessToken, {
-        fields: "id,name,status,adset_id,adset{name},campaign_id,creative{id,title,body,call_to_action_type,thumbnail_url},insights{impressions,reach,clicks,spend,ctr,cpc,cpm,actions,action_values}",
-        limit: "100", date_preset: "last_30d",
-      });
-      const adData = (data.data || []).map((a: Record<string, unknown>) => {
-        const insights = (a.insights as Record<string, unknown[]> | undefined)?.data?.[0] as Record<string, unknown> | undefined;
-        const creative = a.creative as Record<string, unknown> | undefined;
-        const adset = a.adset as Record<string, unknown> | undefined;
-        let roas: number | null = null;
-        if (insights?.action_values) {
-          const pv = (insights.action_values as Array<Record<string, string>>).find(v => v.action_type === "offsite_conversion.fb_pixel_purchase");
-          const spend = parseFloat((insights?.spend as string) || "0");
-          if (pv && spend > 0) roas = parseFloat(pv.value) / spend;
-        }
-        return {
-          userId: ctx.user.id, metaId: a.id as string, campaignMetaId: a.campaign_id as string,
-          name: a.name as string, status: a.status as string, adsetName: adset?.name as string,
-          impressions: insights?.impressions ? parseInt(insights.impressions as string) : null,
-          reach: insights?.reach ? parseInt(insights.reach as string) : null,
-          clicks: insights?.clicks ? parseInt(insights.clicks as string) : null,
-          spend: insights?.spend ? parseFloat(insights.spend as string) : null,
-          ctr: insights?.ctr ? parseFloat(insights.ctr as string) : null,
-          cpc: insights?.cpc ? parseFloat(insights.cpc as string) : null,
-          cpm: insights?.cpm ? parseFloat(insights.cpm as string) : null,
-          roas, creativeType: creative ? "image" : null,
-          thumbnailUrl: creative?.thumbnail_url as string, adText: creative?.body as string,
-          headline: creative?.title as string, callToAction: creative?.call_to_action_type as string,
-          rawData: a, syncedAt: new Date(),
-        };
-      });
-      await deleteAdsByUser(ctx.user.id);
-      if (adData.length > 0) await upsertAds(ctx.user.id, adData);
-      return { success: true, count: adData.length };
-    }),
-  }),
-
-  // ─── Analytics ──────────────────────────────────────────────────────────────
-
-  analytics: router({
-    getCampaigns: protectedProcedure.query(async ({ ctx }) => getCampaigns(ctx.user.id)),
-    getAds: protectedProcedure.query(async ({ ctx }) => getAds(ctx.user.id)),
-
-    getAIInsights: protectedProcedure
-      .input(z.object({ adIds: z.array(z.number()).optional() }))
-      .mutation(async ({ ctx, input }) => {
-        const allAds = await getAds(ctx.user.id);
-        const targetAds = input.adIds ? allAds.filter(a => input.adIds!.includes(a.id)) : allAds.slice(0, 10);
-        if (targetAds.length === 0) return { insights: "Keine Ads gefunden. Bitte synchronisiere zuerst deine Meta Ads." };
-        const adSummary = targetAds.map(a =>
-          `Ad: "${a.name}" | Status: ${a.status} | Impressionen: ${a.impressions || 0} | Reichweite: ${a.reach || 0} | Klicks: ${a.clicks || 0} | Ausgaben: €${a.spend?.toFixed(2) || "0"} | CTR: ${a.ctr?.toFixed(2) || "0"}% | CPC: €${a.cpc?.toFixed(2) || "0"} | ROAS: ${a.roas?.toFixed(2) || "N/A"}`
-        ).join("\n");
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: "Du bist ein erfahrener Performance-Marketing-Experte für Meta Ads. Analysiere die folgenden Ad-Daten und gib strukturierte, umsetzbare Empfehlungen auf Deutsch. Formatiere deine Antwort mit klaren Abschnitten: 1) Top-Performer, 2) Verbesserungspotenzial, 3) Konkrete Handlungsempfehlungen." },
-            { role: "user", content: `Analysiere diese Meta Ads Performance-Daten der letzten 30 Tage:\n\n${adSummary}` },
-          ],
-        });
-        return { insights: response.choices[0]?.message?.content || "Keine Analyse verfügbar." };
-      }),
-  }),
-
-  // ─── Ad Library ─────────────────────────────────────────────────────────────
-
-  adLibrary: router({
-    search: protectedProcedure
-      .input(z.object({ query: z.string().min(1), country: z.string().default("DE"), limit: z.number().default(20) }))
-      .mutation(async ({ ctx, input }) => {
-        try {
-          const conn = await getMetaConnection(ctx.user.id);
-          const data = await searchAdLibrary(input.query, input.country, input.limit, conn?.accessToken);
-          return { results: data.data || [], paging: data.paging };
-        } catch {
-          const mockAds = generateMockAdLibraryResults(input.query, input.country);
-          return { results: mockAds, paging: null, isMock: true };
-        }
-      }),
-
-    saveAd: protectedProcedure
-      .input(z.object({
-        metaAdId: z.string().optional(), pageName: z.string().optional(), pageId: z.string().optional(),
-        adText: z.string().optional(), headline: z.string().optional(), callToAction: z.string().optional(),
-        imageUrl: z.string().optional(), videoUrl: z.string().optional(), startDate: z.string().optional(),
-        endDate: z.string().optional(), country: z.string().optional(), searchQuery: z.string().optional(),
-        competitorId: z.number().optional(), rawData: z.any().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        await saveCompetitorAd({ ...input, userId: ctx.user.id });
-        return { success: true };
-      }),
-
-    getSaved: protectedProcedure.query(async ({ ctx }) => getCompetitorAds(ctx.user.id)),
-
-    deleteSaved: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        await deleteCompetitorAd(input.id, ctx.user.id);
-        return { success: true };
-      }),
-  }),
-
-  // ─── Transcripts ────────────────────────────────────────────────────────────
-
-  transcripts: router({
-    list: protectedProcedure.query(async ({ ctx }) => getTranscripts(ctx.user.id)),
-
-    get: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ ctx, input }) => getTranscriptById(input.id, ctx.user.id)),
-
-    create: protectedProcedure
-      .input(z.object({
-        title: z.string().min(1), content: z.string(),
-        sourceType: z.enum(["competitor_ad", "manual", "ai_generated", "batch"]).default("manual"),
-        sourceId: z.number().optional(), tags: z.string().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        await createTranscript({ ...input, userId: ctx.user.id });
-        return { success: true };
-      }),
-
-    update: protectedProcedure
-      .input(z.object({ id: z.number(), title: z.string().optional(), content: z.string().optional(), tags: z.string().optional() }))
-      .mutation(async ({ ctx, input }) => {
-        const { id, ...data } = input;
-        await updateTranscript(id, ctx.user.id, data);
-        return { success: true };
-      }),
-
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        await deleteTranscript(input.id, ctx.user.id);
-        return { success: true };
-      }),
-
-    generateFromAd: protectedProcedure
-      .input(z.object({ adText: z.string(), headline: z.string().optional(), pageName: z.string().optional(), callToAction: z.string().optional() }))
-      .mutation(async ({ ctx, input }) => {
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: "Du bist ein erfahrener Copywriter und Video-Skript-Autor. Erstelle aus dem folgenden Werbetext ein professionelles Teleprompter-Skript auf Deutsch. Das Skript soll: 1) Natürlich und authentisch klingen, 2) In klare Sätze und Absätze strukturiert sein, 3) Pausen durch Zeilenumbrüche andeuten, 4) Den Call-to-Action am Ende einbauen. Gib NUR das Skript zurück." },
-            { role: "user", content: `Erstelle ein Teleprompter-Skript aus diesem Ad:\n\nMarke: ${input.pageName || "Unbekannt"}\nÜberschrift: ${input.headline || ""}\nAnzeigentext: ${input.adText}\nCTA: ${input.callToAction || ""}` },
-          ],
-        });
-        return { content: response.choices[0]?.message?.content || "" };
-      }),
-  }),
-
-  // ─── Documents ──────────────────────────────────────────────────────────────
-
-  documents: router({
-    list: protectedProcedure.query(async ({ ctx }) => getDocuments(ctx.user.id)),
-
-    export: protectedProcedure
-      .input(z.object({
-        title: z.string().min(1), content: z.string().min(1),
-        format: z.enum(["markdown", "pdf"]),
-        sourceType: z.enum(["transcript", "analysis", "batch"]).default("transcript"),
-        sourceId: z.number().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        await createDocument({ ...input, userId: ctx.user.id });
-        return { success: true };
-      }),
-
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        await deleteDocument(input.id, ctx.user.id);
-        return { success: true };
-      }),
-  }),
-
-  // ─── Competitors ─────────────────────────────────────────────────────────────
-
-  competitors: router({
-    list: protectedProcedure.query(async ({ ctx }) => getCompetitors(ctx.user.id)),
-
-    create: protectedProcedure
-      .input(z.object({
-        name: z.string().min(1), pageId: z.string().optional(), pageName: z.string().optional(),
-        country: z.string().default("DE"), language: z.string().default("de"), notes: z.string().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        await createCompetitor({ ...input, userId: ctx.user.id });
-        return { success: true };
-      }),
-
-    update: protectedProcedure
-      .input(z.object({
-        id: z.number(), name: z.string().optional(), pageId: z.string().optional(),
-        country: z.string().optional(), language: z.string().optional(),
-        isActive: z.boolean().optional(), notes: z.string().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const { id, ...data } = input;
-        await updateCompetitor(id, ctx.user.id, data);
-        return { success: true };
-      }),
-
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        await deleteCompetitor(input.id, ctx.user.id);
-        return { success: true };
-      }),
-
-    scan: protectedProcedure
-      .input(z.object({ competitorId: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        const competitor = await getCompetitorById(input.competitorId, ctx.user.id);
-        if (!competitor) throw new Error("Konkurrent nicht gefunden.");
-
-        // Create scan log
-        const logResult = await createScanLog({
-          userId: ctx.user.id,
-          competitorId: competitor.id,
-          competitorName: competitor.name,
-          status: "running",
-        });
-        const logId = (logResult as { insertId?: number })?.insertId;
-
-        try {
-          const conn = await getMetaConnection(ctx.user.id);
-          let results: ReturnType<typeof generateMockAdLibraryResults> = [];
-          let isMock = false;
-
-          try {
-            const searchQuery = competitor.pageName || competitor.name;
-            const data = await searchAdLibrary(searchQuery, competitor.country, 20, conn?.accessToken);
-            results = data.data || [];
-          } catch {
-            results = generateMockAdLibraryResults(competitor.name, competitor.country);
-            isMock = true;
-          }
-
-          let newAds = 0;
-          for (const ad of results) {
-            const adText = ad.ad_creative_bodies?.[0] || "";
-            if (!adText) continue;
-            await saveCompetitorAd({
-              userId: ctx.user.id,
-              competitorId: competitor.id,
-              metaAdId: ad.id,
-              pageName: ad.page_name || competitor.name,
-              pageId: ad.page_id,
-              adText,
-              headline: ad.ad_creative_link_titles?.[0],
-              startDate: ad.ad_delivery_start_time,
-              country: competitor.country,
-              searchQuery: competitor.name,
-              rawData: ad,
-              isProcessed: false,
-            });
-            newAds++;
-          }
-
-          await updateCompetitor(competitor.id, ctx.user.id, {
-            lastScannedAt: new Date(),
-            totalAdsFound: (competitor.totalAdsFound || 0) + results.length,
-            newAdsSinceLastScan: newAds,
-          });
-
-          if (logId) {
-            await updateScanLog(logId, {
-              status: "completed",
-              adsFound: results.length,
-              newAds,
-              completedAt: new Date(),
-            });
-          }
-
-          return { success: true, adsFound: results.length, newAds, isMock };
-        } catch (error) {
-          if (logId) {
-            await updateScanLog(logId, {
-              status: "failed",
-              errorMessage: error instanceof Error ? error.message : "Unbekannter Fehler",
-              completedAt: new Date(),
-            });
-          }
-          throw error;
-        }
-      }),
-
-    scanAll: protectedProcedure.mutation(async ({ ctx }) => {
-      const activeCompetitors = await getActiveCompetitors(ctx.user.id);
-      if (activeCompetitors.length === 0) return { success: true, scanned: 0, totalNewAds: 0 };
-
-      let totalNewAds = 0;
-      const results = [];
-
-      for (const competitor of activeCompetitors) {
-        try {
-          const conn = await getMetaConnection(ctx.user.id);
-          let ads: ReturnType<typeof generateMockAdLibraryResults> = [];
-          let isMock = false;
-
-          try {
-            const data = await searchAdLibrary(competitor.pageName || competitor.name, competitor.country, 10, conn?.accessToken);
-            ads = data.data || [];
-          } catch {
-            ads = generateMockAdLibraryResults(competitor.name, competitor.country);
-            isMock = true;
-          }
-
-          let newAds = 0;
-          for (const ad of ads) {
-            const adText = ad.ad_creative_bodies?.[0] || "";
-            if (!adText) continue;
-            await saveCompetitorAd({
-              userId: ctx.user.id, competitorId: competitor.id,
-              metaAdId: ad.id, pageName: ad.page_name || competitor.name,
-              adText, headline: ad.ad_creative_link_titles?.[0],
-              startDate: ad.ad_delivery_start_time, country: competitor.country,
-              searchQuery: competitor.name, rawData: ad, isProcessed: false,
-            });
-            newAds++;
-          }
-
-          await updateCompetitor(competitor.id, ctx.user.id, {
-            lastScannedAt: new Date(),
-            totalAdsFound: (competitor.totalAdsFound || 0) + ads.length,
-            newAdsSinceLastScan: newAds,
-          });
-
-          totalNewAds += newAds;
-          results.push({ name: competitor.name, newAds, isMock });
-        } catch (e) {
-          results.push({ name: competitor.name, error: e instanceof Error ? e.message : "Fehler" });
-        }
-      }
-
-      return { success: true, scanned: activeCompetitors.length, totalNewAds, results };
-    }),
-
-    getScanLogs: protectedProcedure.query(async ({ ctx }) => getScanLogs(ctx.user.id)),
-  }),
-
-  // ─── Ad Batches ──────────────────────────────────────────────────────────────
-
-  batches: router({
-    list: protectedProcedure.query(async ({ ctx }) => getAdBatches(ctx.user.id)),
-
-    get: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ ctx, input }) => getAdBatchById(input.id, ctx.user.id)),
-
-    generate: protectedProcedure
-      .input(z.object({
-        sourceAdId: z.number().optional(),
-        adText: z.string().min(1),
-        competitorName: z.string().optional(),
-        language: z.string().default("de"),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const brand = await getBrandSettings(ctx.user.id);
-        const brandContext = brand
-          ? `Marke: ${brand.brandName}. ${brand.brandDescription || ""}. Zielgruppe: ${brand.targetAudience || ""}. USPs: ${brand.uniqueSellingPoints || ""}. Ton: ${brand.toneOfVoice || "professionell und direkt"}.`
-          : "Easy Signals – digitale Marketing-Lösungen für Unternehmen.";
-
-        const batch = await generateBatchFromAdText(
-          input.adText,
-          brandContext,
-          input.competitorName || "Unbekannt",
-          input.language
-        );
-
-        const title = `Batch – ${input.competitorName || "Ad"} – ${new Date().toLocaleDateString("de-DE")}`;
-        await createAdBatch({
-          userId: ctx.user.id,
-          title,
-          sourceAdId: input.sourceAdId,
-          sourceAdText: input.adText,
-          competitorName: input.competitorName,
-          body: batch.body,
-          cta: batch.cta,
-          hook1: batch.hook1,
-          hook2: batch.hook2,
-          hook3: batch.hook3,
-          heygenScript: batch.heygenScript,
-          brandContext,
-          language: input.language,
-          status: "ready",
-        });
-
-        return { success: true, batch };
-      }),
-
-    update: protectedProcedure
-      .input(z.object({
-        id: z.number(), title: z.string().optional(), body: z.string().optional(),
-        cta: z.string().optional(), hook1: z.string().optional(), hook2: z.string().optional(),
-        hook3: z.string().optional(), heygenScript: z.string().optional(),
-        status: z.enum(["draft", "ready", "exported", "used"]).optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const { id, ...data } = input;
-        await updateAdBatch(id, ctx.user.id, data);
-        return { success: true };
-      }),
-
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        await deleteAdBatch(input.id, ctx.user.id);
-        return { success: true };
-      }),
-
-    generateFromCompetitor: protectedProcedure
-      .input(z.object({ competitorId: z.number(), maxAds: z.number().default(3) }))
-      .mutation(async ({ ctx, input }) => {
-        const competitorAdsData = await (async () => {
-          const db = await import("./db");
-          return db.getCompetitorAdsByCompetitor(ctx.user.id, input.competitorId);
-        })();
-
-        const unprocessed = competitorAdsData.filter(a => !a.isProcessed && a.adText).slice(0, input.maxAds);
-        if (unprocessed.length === 0) return { success: true, batchesCreated: 0, message: "Keine unverarbeiteten Ads gefunden." };
-
-        const brand = await getBrandSettings(ctx.user.id);
-        const brandContext = brand
-          ? `Marke: ${brand.brandName}. ${brand.brandDescription || ""}. Zielgruppe: ${brand.targetAudience || ""}. USPs: ${brand.uniqueSellingPoints || ""}.`
-          : "Easy Signals – digitale Marketing-Lösungen.";
-
-        let created = 0;
-        for (const ad of unprocessed) {
-          if (!ad.adText) continue;
-          try {
-            const batch = await generateBatchFromAdText(ad.adText, brandContext, ad.pageName || "Unbekannt", "de");
-            await createAdBatch({
-              userId: ctx.user.id,
-              title: `Batch – ${ad.pageName || "Ad"} – ${new Date().toLocaleDateString("de-DE")}`,
-              sourceAdId: ad.id,
-              sourceAdText: ad.adText,
-              competitorName: ad.pageName,
-              body: batch.body, cta: batch.cta,
-              hook1: batch.hook1, hook2: batch.hook2, hook3: batch.hook3,
-              heygenScript: batch.heygenScript,
-              brandContext, language: "de", status: "ready",
-            });
-            await markCompetitorAdProcessed(ad.id);
-            created++;
-          } catch (e) {
-            console.error("Batch generation failed for ad", ad.id, e);
-          }
-        }
-
-        return { success: true, batchesCreated: created };
-      }),
-
-    exportToTranscript: protectedProcedure
-      .input(z.object({ batchId: z.number(), hookIndex: z.number().default(0) }))
-      .mutation(async ({ ctx, input }) => {
-        const batch = await getAdBatchById(input.batchId, ctx.user.id);
-        if (!batch) throw new Error("Batch nicht gefunden.");
-
-        const hooks = [batch.hook1, batch.hook2, batch.hook3];
-        const selectedHook = hooks[input.hookIndex] || batch.hook1;
-        const fullScript = `${selectedHook}\n\n${batch.body}\n\n${batch.cta}`;
-
-        await createTranscript({
-          userId: ctx.user.id,
-          title: `${batch.title} – Hook ${input.hookIndex + 1}`,
-          content: fullScript,
-          sourceType: "batch",
-          sourceId: batch.id,
-        });
-
-        await updateAdBatch(batch.id, ctx.user.id, { status: "exported" });
-        return { success: true };
-      }),
-  }),
-
-  // ─── Brand Settings ──────────────────────────────────────────────────────────
-
-  brand: router({
-    get: protectedProcedure.query(async ({ ctx }) => {
-      const settings = await getBrandSettings(ctx.user.id);
-      return settings || {
-        brandName: "Easy Signals",
-        brandDescription: "",
-        targetAudience: "",
-        toneOfVoice: "professionell und direkt",
-        uniqueSellingPoints: "",
-        callToActionDefault: "Jetzt kostenlos starten",
-        language: "de",
-      };
-    }),
-
-    save: protectedProcedure
-      .input(z.object({
-        brandName: z.string().min(1).default("Easy Signals"),
-        brandDescription: z.string().optional(),
-        targetAudience: z.string().optional(),
-        toneOfVoice: z.string().optional(),
-        uniqueSellingPoints: z.string().optional(),
-        callToActionDefault: z.string().optional(),
-        language: z.string().default("de"),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        await upsertBrandSettings({ ...input, userId: ctx.user.id });
-        return { success: true };
-      }),
-  }),
-
-  // ─── Google Drive ────────────────────────────────────────────────────────────
-
-  googleDrive: router({
-    getConnection: protectedProcedure.query(async ({ ctx }) => {
-      const conn = await getGoogleDriveConnection(ctx.user.id);
-      if (!conn) return null;
-      return { id: conn.id, rootFolderName: conn.rootFolderName, rootFolderId: conn.rootFolderId, isActive: conn.isActive, createdAt: conn.createdAt };
-    }),
-
-    connect: protectedProcedure
-      .input(z.object({ accessToken: z.string().min(1), refreshToken: z.string().optional(), folderName: z.string().default("Easy Signals Ads") }))
-      .mutation(async ({ ctx, input }) => {
-        // Verify token and create root folder
-        const aboutRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user", {
-          headers: { Authorization: `Bearer ${input.accessToken}` },
-        });
-        const about = await aboutRes.json();
-        if (about.error) throw new Error("Ungültiger Google Access Token.");
-
-        // Create root folder
-        let folder;
-        try {
-          folder = await createGoogleDriveFolder(input.accessToken, input.folderName);
-        } catch {
-          throw new Error("Konnte Google Drive Ordner nicht erstellen.");
-        }
-
-        await upsertGoogleDriveConnection({
-          userId: ctx.user.id,
-          accessToken: input.accessToken,
-          refreshToken: input.refreshToken,
-          rootFolderId: folder.id,
-          rootFolderName: input.folderName,
-          isActive: true,
-        });
-
-        return { success: true, folderId: folder.id, folderName: input.folderName };
-      }),
-
-    disconnect: protectedProcedure.mutation(async ({ ctx }) => {
-      await deleteGoogleDriveConnection(ctx.user.id);
-      return { success: true };
-    }),
-
-    uploadBatch: protectedProcedure
-      .input(z.object({ batchId: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        const [batch, driveConn] = await Promise.all([
-          getAdBatchById(input.batchId, ctx.user.id),
-          getGoogleDriveConnection(ctx.user.id),
-        ]);
-        if (!batch) throw new Error("Batch nicht gefunden.");
-        if (!driveConn) throw new Error("Keine Google Drive Verbindung. Bitte zuerst verbinden.");
-
-        // Create date subfolder
-        const dateStr = new Date().toISOString().split("T")[0];
-        let dateFolderId = driveConn.rootFolderId || undefined;
-        try {
-          const dateFolder = await createGoogleDriveFolder(driveConn.accessToken, dateStr, driveConn.rootFolderId || undefined);
-          dateFolderId = dateFolder.id;
-        } catch {
-          // Folder might already exist, use root
-        }
-
-        // Format content as markdown
-        const content = `# ${batch.title}
-
-## 🎯 Hook 1
-${batch.hook1}
-
-## 🎯 Hook 2
-${batch.hook2}
-
-## 🎯 Hook 3
-${batch.hook3}
-
-## 📝 Body
-${batch.body}
-
-## 🚀 CTA
-${batch.cta}
-
----
-
-## 🤖 HeyGen Skript (Hook 1 + Body + CTA)
-${batch.heygenScript || `${batch.hook1}\n\n${batch.body}\n\n${batch.cta}`}
-
----
-*Generiert am ${new Date().toLocaleDateString("de-DE")} | Quelle: ${batch.competitorName || "Manuell"} | Easy Signals*`;
-
-        const file = await uploadGoogleDriveFile(driveConn.accessToken, `${batch.title}.md`, content, dateFolderId);
-
-        await updateAdBatch(batch.id, ctx.user.id, {
-          googleDriveFileId: file.id,
-          googleDriveUrl: file.webViewLink,
-          status: "exported",
-        });
-
-        return { success: true, fileId: file.id, fileUrl: file.webViewLink };
-      }),
-
-    listFolders: protectedProcedure.query(async ({ ctx }) => {
-      const driveConn = await getGoogleDriveConnection(ctx.user.id);
-      if (!driveConn) return [];
-      try {
-        return await listGoogleDriveFolders(driveConn.accessToken, driveConn.rootFolderId || undefined);
-      } catch {
-        return [];
-      }
-    }),
-  }),
-
-  // ─── Automation ──────────────────────────────────────────────────────────────
-
-  automation: router({
-    triggerDailyScan: protectedProcedure.mutation(async ({ ctx }) => {
-      const result = await runDailyScan(ctx.user.id);
-      return result;
-    }),
-
-    startScheduler: protectedProcedure.mutation(async ({ ctx }) => {
-      startScheduler(ctx.user.id);
-      return { success: true };
-    }),
-  }),
-
-  // ─── Dashboard Stats ────────────────────────────────────────────────────────
-
-  dashboard: router({
-    stats: protectedProcedure.query(async ({ ctx }) => {
-      const [campaignsData, allAds, competitorAdsData, transcriptsData, documentsData, competitorsData, batchesData] = await Promise.all([
-        getCampaigns(ctx.user.id),
-        getAds(ctx.user.id),
-        getCompetitorAds(ctx.user.id),
-        getTranscripts(ctx.user.id),
-        getDocuments(ctx.user.id),
-        getCompetitors(ctx.user.id),
-        getAdBatches(ctx.user.id),
-      ]);
-
-      const totalSpend = allAds.reduce((sum, ad) => sum + (ad.spend || 0), 0);
-      const adsWithCtr = allAds.filter(a => a.ctr);
-      const avgCTR = adsWithCtr.length > 0 ? allAds.reduce((sum, ad) => sum + (ad.ctr || 0), 0) / adsWithCtr.length : 0;
-      const adsWithRoas = allAds.filter(a => a.roas);
-      const avgROAS = adsWithRoas.length > 0 ? allAds.reduce((sum, ad) => sum + (ad.roas || 0), 0) / adsWithRoas.length : 0;
-
-      const todayBatches = batchesData.filter(b => {
-        const today = new Date();
-        const batchDate = new Date(b.generatedAt);
-        return batchDate.toDateString() === today.toDateString();
-      });
-
-      return {
-        campaigns: campaignsData.length,
-        ads: allAds.length,
-        competitorAds: competitorAdsData.length,
-        transcripts: transcriptsData.length,
-        documents: documentsData.length,
-        competitors: competitorsData.length,
-        batches: batchesData.length,
-        todayBatches: todayBatches.length,
-        totalSpend,
-        avgCTR: isNaN(avgCTR) ? 0 : avgCTR,
-        avgROAS: isNaN(avgROAS) ? 0 : avgROAS,
-        recentTranscripts: transcriptsData.slice(0, 3),
-        recentAds: allAds.slice(0, 5),
-        recentBatches: batchesData.slice(0, 3),
-        activeCompetitors: competitorsData.filter(c => c.isActive).length,
-      };
-    }),
-  }),
+  meta: metaRouter,
+  analytics: analyticsRouter,
+  adLibrary: adLibraryRouter,
+  transcripts: transcriptsRouter,
+  documents: documentsRouter,
+  competitors: competitorsRouter,
+  batches: batchesRouter,
+  brand: brandRouter,
+  googleDrive: googleDriveRouter,
+  automation: automationRouter,
+  dashboard: dashboardRouter,
+  heygen: heygenRouter,
 });
 
 export type AppRouter = typeof appRouter;

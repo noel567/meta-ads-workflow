@@ -135,3 +135,17 @@
 - [x] Automatischer Google Drive Upload nach Batch-Generierung im Scheduler
 - [x] Tägliche Zusammenfassung als Google Doc nach Scheduler-Lauf
 - [x] Ordnerstruktur in Drive: /Easy Signals Ads/YYYY-MM-DD/Konkurrent/
+
+## HeyGen-Integration (direkte Video-Erstellung)
+- [ ] HeyGen API-Key in Einstellungen hinterlegen (Secret)
+- [ ] tRPC Router: heygen.getAvatars (Liste aller Avatare)
+- [ ] tRPC Router: heygen.getVoices (Liste aller Stimmen)
+- [ ] tRPC Router: heygen.createVideo (Video aus Skript erstellen)
+- [ ] tRPC Router: heygen.getVideoStatus (Video-Status abrufen)
+- [ ] tRPC Router: heygen.getVideos (Liste erstellter Videos)
+- [ ] DB-Schema: heygen_videos Tabelle (video_id, batch_id, status, url)
+- [ ] UI: "An HeyGen senden" Button in Batches.tsx
+- [ ] UI: Avatar + Voice Auswahl-Dialog
+- [ ] UI: Video-Status-Anzeige (pending/processing/completed/failed)
+- [ ] UI: Link zum fertigen Video in HeyGen
+- [ ] UI: HeyGen-Status in Einstellungen (API-Key-Verbindung testen)

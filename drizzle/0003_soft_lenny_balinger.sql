@@ -1,0 +1,20 @@
+CREATE TABLE `heygen_videos` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`userId` int NOT NULL,
+	`batchId` int,
+	`heygenVideoId` varchar(128) NOT NULL,
+	`title` varchar(255),
+	`script` text,
+	`avatarId` varchar(128),
+	`avatarName` varchar(255),
+	`voiceId` varchar(128),
+	`voiceName` varchar(255),
+	`status` enum('pending','waiting','processing','completed','failed') NOT NULL DEFAULT 'pending',
+	`videoUrl` text,
+	`thumbnailUrl` text,
+	`duration` float,
+	`errorMessage` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `heygen_videos_id` PRIMARY KEY(`id`)
+);

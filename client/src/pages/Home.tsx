@@ -19,7 +19,7 @@ export default function Home() {
   const [, navigate] = useLocation();
   const [runningDailyScan, setRunningDailyScan] = useState(false);
 
-  const { data: stats, refetch } = trpc.dashboard.stats.useQuery(undefined, {
+  const { data: stats, refetch } = trpc.dashboard.getStats.useQuery(undefined, {
     enabled: isAuthenticated,
     refetchInterval: 30000,
   });
@@ -27,11 +27,11 @@ export default function Home() {
   const { data: metaConn } = trpc.meta.getConnection.useQuery(undefined, { enabled: isAuthenticated });
   const { data: driveConn } = trpc.googleDrive.getConnection.useQuery(undefined, { enabled: isAuthenticated });
 
-  const dailyScanMutation = trpc.automation.triggerDailyScan.useMutation({
+  const dailyScanMutation = trpc.automation.runScan.useMutation({
     onSuccess: (data) => {
       setRunningDailyScan(false);
       toast.success(
-        `Scan abgeschlossen: ${data.scanned} Konkurrenten, ${data.totalNewAds} neue Ads, ${data.batchesCreated} Batches erstellt`
+        `Scan abgeschlossen: ${(data as any).scanned ?? 0} Konkurrenten, ${(data as any).totalNewAds ?? 0} neue Ads, ${(data as any).batchesCreated ?? 0} Batches erstellt`
       );
       refetch();
     },

@@ -62,12 +62,12 @@ export default function Batches() {
     onError: (e) => toast.error(e.message),
   });
 
-  const exportTranscriptMutation = trpc.batches.exportToTranscript.useMutation({
+  const exportTranscriptMutation = trpc.transcripts.create.useMutation({
     onSuccess: () => {
       toast.success("Als Transkript gespeichert – jetzt im Teleprompter verfügbar!");
       refetch();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 
   const updateMutation = trpc.batches.update.useMutation({
@@ -85,8 +85,8 @@ export default function Batches() {
       toast.success(
         <div className="flex flex-col gap-1">
           <span>Zu Google Drive hochgeladen!</span>
-          {data.fileUrl && (
-            <a href={data.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline">
+          {data.webViewLink && (
+            <a href={data.webViewLink} target="_blank" rel="noopener noreferrer" className="text-xs underline">
               Datei öffnen →
             </a>
           )}
@@ -261,7 +261,7 @@ export default function Batches() {
                         variant="outline"
                         size="sm"
                         className="h-8 gap-1.5 text-xs"
-                        onClick={() => exportTranscriptMutation.mutate({ batchId: batch.id, hookIndex: 0 })}
+                        onClick={() => exportTranscriptMutation.mutate({ title: `${batch.title} – Teleprompter`, content: batch.hook1 || batch.body || "", sourceType: "batch", sourceId: batch.id })}
                         disabled={exportTranscriptMutation.isPending}
                         title="Als Transkript speichern (Hook 1)"
                       >
@@ -393,7 +393,7 @@ export default function Batches() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 text-xs px-2 gap-1"
-                                    onClick={() => exportTranscriptMutation.mutate({ batchId: batch.id, hookIndex: index })}
+                                    onClick={() => exportTranscriptMutation.mutate({ title: `${batch.title} – Hook ${index + 1}`, content: text || "", sourceType: "batch", sourceId: batch.id })}
                                   >
                                     <BookOpen className="w-3 h-3" />
                                     Teleprompter
@@ -516,7 +516,7 @@ export default function Batches() {
               </div>
               <Button
                 className="w-full gap-2"
-                onClick={() => generateMutation.mutate({ adText, competitorName: competitorName || undefined, language: "de" })}
+                onClick={() => generateMutation.mutate({ adText, competitorAdId: 0, competitorName: competitorName || "Unbekannt" })}
                 disabled={!adText.trim() || generateMutation.isPending}
               >
                 {generateMutation.isPending ? (

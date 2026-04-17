@@ -25,6 +25,9 @@ import {
   InsertGoogleDriveConnection,
   scanLogs,
   InsertScanLog,
+  heygenVideos,
+  InsertHeygenVideo,
+  HeygenVideo,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -425,4 +428,40 @@ export async function updateScanLog(id: number, data: Partial<InsertScanLog>) {
   const db = await getDb();
   if (!db) return;
   await db.update(scanLogs).set(data).where(eq(scanLogs.id, id));
+}
+
+// ─── HeyGen Videos ────────────────────────────────────────────────────────────
+
+export async function createHeygenVideo(data: InsertHeygenVideo): Promise<number | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.insert(heygenVideos).values(data);
+  return (result as any)[0]?.insertId as number | undefined;
+}
+
+export async function getHeygenVideos(userId: number): Promise<HeygenVideo[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(heygenVideos).where(eq(heygenVideos.userId, userId)).orderBy(desc(heygenVideos.createdAt)).limit(50);
+}
+
+export async function getHeygenVideosByBatch(userId: number, batchId: number): Promise<HeygenVideo[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(heygenVideos)
+    .where(and(eq(heygenVideos.userId, userId), eq(heygenVideos.batchId, batchId)))
+    .orderBy(desc(heygenVideos.createdAt));
+}
+
+export async function updateHeygenVideo(id: number, data: Partial<InsertHeygenVideo>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(heygenVideos).set(data).where(eq(heygenVideos.id, id));
+}
+
+export async function getHeygenVideoByHeygenId(heygenVideoId: string): Promise<HeygenVideo | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(heygenVideos).where(eq(heygenVideos.heygenVideoId, heygenVideoId)).limit(1);
+  return result[0];
 }

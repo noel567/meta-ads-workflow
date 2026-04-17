@@ -43,9 +43,9 @@ export default function Settings() {
     });
   }, [brandData]);
 
-  const saveBrandMutation = trpc.brand.save.useMutation({
+  const saveBrandMutation = trpc.brand.upsert.useMutation({
     onSuccess: () => { toast.success("Brand-Einstellungen gespeichert"); refetchBrand(); },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 
   // Google Drive
@@ -54,12 +54,12 @@ export default function Settings() {
   const [driveFolderName, setDriveFolderName] = useState("Easy Signals Ads");
 
   const connectDriveMutation = trpc.googleDrive.connect.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Google Drive verbunden! Ordner "${data.folderName}" erstellt.`);
+    onSuccess: (data: any) => {
+      toast.success(`Google Drive verbunden! Root-Ordner erstellt.`);
       setDriveToken("");
       refetchDrive();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 
   const disconnectDriveMutation = trpc.googleDrive.disconnect.useMutation({
@@ -249,7 +249,7 @@ export default function Settings() {
                     Root-Ordner: <strong className="text-foreground">{driveConnection.rootFolderName}</strong>
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Verbunden seit: {new Date(driveConnection.createdAt).toLocaleDateString("de-DE")}
+                    Verbunden seit: {new Date(driveConnection.updatedAt).toLocaleDateString("de-DE")}
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/30 border border-border">
@@ -298,7 +298,7 @@ export default function Settings() {
                 </div>
                 <Button
                   className="w-full gap-2"
-                  onClick={() => connectDriveMutation.mutate({ accessToken: driveToken, folderName: driveFolderName })}
+                  onClick={() => connectDriveMutation.mutate({ accessToken: driveToken, rootFolderName: driveFolderName })}
                   disabled={!driveToken || connectDriveMutation.isPending}
                 >
                   {connectDriveMutation.isPending ? "Verbinde..." : (

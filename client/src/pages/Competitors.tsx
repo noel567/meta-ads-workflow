@@ -76,27 +76,28 @@ export default function Competitors() {
     onError: (e) => toast.error(e.message),
   });
 
-  const scanMutation = trpc.competitors.scan.useMutation({
-    onSuccess: (data, vars) => {
+  const scanMutation = trpc.competitors.scanAds.useMutation({
+    onSuccess: (data: { found: number }, _vars: any) => {
       setScanningId(null);
-      toast.success(`Scan abgeschlossen: ${data.newAds} neue Ads${data.isMock ? " (Demo-Daten)" : ""}`);
+      toast.success(`Scan abgeschlossen: ${data.found} Ads gefunden`);
       refetch();
     },
-    onError: (e) => { setScanningId(null); toast.error(e.message); },
+    onError: (e: any) => { setScanningId(null); toast.error(e.message); },
   });
 
-  const scanAllMutation = trpc.competitors.scanAll.useMutation({
-    onSuccess: (data) => {
+  const scanAllMutation = trpc.automation.runScan.useMutation({
+    onSuccess: (data: any) => {
       setScanningAll(false);
-      toast.success(`Alle ${data.scanned} Konkurrenten gescannt – ${data.totalNewAds} neue Ads gefunden`);
+      toast.success(`Alle ${data.scanned ?? 0} Konkurrenten gescannt – ${data.totalNewAds ?? 0} neue Ads gefunden`);
       refetch();
     },
-    onError: (e) => { setScanningAll(false); toast.error(e.message); },
+    onError: (e: any) => { setScanningAll(false); toast.error(e.message); },
   });
 
   const handleScan = (id: number) => {
     setScanningId(id);
-    scanMutation.mutate({ competitorId: id });
+    const competitor = competitors?.find(c => c.id === id);
+    scanMutation.mutate({ competitorId: id, query: competitor?.pageName || competitor?.name || "ads" });
   };
 
   const handleScanAll = () => {

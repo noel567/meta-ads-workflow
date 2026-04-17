@@ -261,3 +261,26 @@ export const brandSettings = mysqlTable("brand_settings", {
 
 export type BrandSettings = typeof brandSettings.$inferSelect;
 export type InsertBrandSettings = typeof brandSettings.$inferInsert;
+
+// ─── HeyGen Videos ────────────────────────────────────────────────────────────
+export const heygenVideos = mysqlTable("heygen_videos", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  batchId: int("batchId"),
+  heygenVideoId: varchar("heygenVideoId", { length: 128 }).notNull(),
+  title: varchar("title", { length: 255 }),
+  script: text("script"),
+  avatarId: varchar("avatarId", { length: 128 }),
+  avatarName: varchar("avatarName", { length: 255 }),
+  voiceId: varchar("voiceId", { length: 128 }),
+  voiceName: varchar("voiceName", { length: 255 }),
+  status: mysqlEnum("status", ["pending", "waiting", "processing", "completed", "failed"]).default("pending").notNull(),
+  videoUrl: text("videoUrl"),
+  thumbnailUrl: text("thumbnailUrl"),
+  duration: float("duration"),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type HeygenVideo = typeof heygenVideos.$inferSelect;
+export type InsertHeygenVideo = typeof heygenVideos.$inferInsert;
