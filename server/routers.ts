@@ -601,27 +601,47 @@ const googleDriveRouter = router({
       const batch = await getAdBatchById(input.batchId, ctx.user.id);
       if (!batch) throw new Error("Batch nicht gefunden.");
       const dateStr = new Date().toISOString().split("T")[0];
-      let dateFolderId = conn.rootFolderId || undefined;
       try {
-        const dateFolders = await listGoogleDriveFolders(conn.accessToken, conn.rootFolderId || undefined);
+        // Auto-refresh expired token before any Drive API call
+        const { getValidAccessToken } = await import("./googleDriveOAuth");
+        const accessToken = await getValidAccessToken({
+          accessToken: conn.accessToken,
+          refreshToken: conn.refreshToken ?? "",
+          tokenExpiresAt: conn.tokenExpiry ?? null,
+        });
+        // Persist renewed token if it changed
+        if (accessToken !== conn.accessToken) {
+          await upsertGoogleDriveConnection({
+            userId: ctx.user.id,
+            accessToken,
+            refreshToken: conn.refreshToken ?? undefined,
+            tokenExpiry: new Date(Date.now() + 55 * 60 * 1000),
+            rootFolderId: conn.rootFolderId ?? undefined,
+            rootFolderName: conn.rootFolderName ?? "Easy Signals Ads",
+            connectedEmail: conn.connectedEmail ?? undefined,
+            isActive: true,
+          });
+        }
+        let dateFolderId = conn.rootFolderId || undefined;
+        const dateFolders = await listGoogleDriveFolders(accessToken, conn.rootFolderId || undefined);
         const existingDate = dateFolders.find(f => f.name === dateStr);
         if (existingDate) {
           dateFolderId = existingDate.id;
         } else {
-          const dateFolder = await createGoogleDriveFolder(conn.accessToken, dateStr, conn.rootFolderId || undefined);
+          const dateFolder = await createGoogleDriveFolder(accessToken, dateStr, conn.rootFolderId || undefined);
           dateFolderId = dateFolder.id;
         }
-        const competitorFolders = await listGoogleDriveFolders(conn.accessToken, dateFolderId);
+        const competitorFolders = await listGoogleDriveFolders(accessToken, dateFolderId);
         const existingComp = competitorFolders.find(f => f.name === batch.competitorName);
         let competitorFolderId: string;
         if (existingComp) {
           competitorFolderId = existingComp.id;
         } else {
-          const compFolder = await createGoogleDriveFolder(conn.accessToken, batch.competitorName ?? "Unknown", dateFolderId);
+          const compFolder = await createGoogleDriveFolder(accessToken, batch.competitorName ?? "Unknown", dateFolderId);
           competitorFolderId = compFolder.id;
         }
         const content = `# Ad Batch: ${batch.competitorName}\n\n**Datum:** ${dateStr}\n\n## Body\n${batch.body}\n\n## CTA\n${batch.cta}\n\n## Hook 1\n${batch.hook1}\n\n## Hook 2\n${batch.hook2}\n\n## Hook 3\n${batch.hook3}\n\n## HeyGen Skript\n${batch.heygenScript}`;
-        const file = await uploadGoogleDriveFile(conn.accessToken, `${batch.competitorName}_${dateStr}.md`, content, competitorFolderId);
+        const file = await uploadGoogleDriveFile(accessToken, `${batch.competitorName}_${dateStr}.md`, content, competitorFolderId);
         await updateAdBatch(input.batchId, ctx.user.id, { status: "exported" });
         return { success: true, fileId: file.id, webViewLink: file.webViewLink };
       } catch (err: any) {

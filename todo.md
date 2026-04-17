@@ -162,13 +162,13 @@
 - [x] Vitest: hooks.generate Router Test (in meta-ads-workflow.test.ts)
 
 ## Google Drive OAuth (echter OAuth 2.0 Flow)
-- [ ] Google Cloud Console: OAuth 2.0 Client-ID und Client-Secret
-- [ ] Backend: /api/google/auth Route (OAuth Redirect zu Google)
-- [ ] Backend: /api/google/callback Route (Code → Access + Refresh Token)
-- [ ] Backend: Token-Erneuerung via Refresh Token (automatisch)
-- [ ] Backend: Drive-Upload mit echtem Token (Ordner erstellen + Datei hochladen)
-- [ ] Frontend: "Mit Google Drive verbinden" Button in Settings
-- [ ] Frontend: OAuth-Redirect-Flow (Popup oder Redirect)
-- [ ] Frontend: Verbindungsstatus anzeigen (verbunden/getrennt + E-Mail)
-- [ ] Frontend: Verbindung trennen Button
-- [ ] Vitest: Google Drive Token-Refresh Test
+- [x] Google Cloud Console: OAuth 2.0 Client-ID und Client-Secret
+- [x] Backend: /api/google/auth Route (OAuth Redirect zu Google)
+- [x] Backend: /api/google/callback Route (Code → Access + Refresh Token)
+- [x] Backend: Token-Erneuerung via Refresh Token (automatisch)
+- [x] Backend: Drive-Upload mit echtem Token (Ordner erstellen + Datei hochladen)
+- [x] Frontend: "Mit Google Drive verbinden" Button in Settings
+- [x] Frontend: OAuth-Redirect-Flow (Redirect zu Google + Callback)
+- [x] Frontend: Verbindungsstatus anzeigen (verbunden/getrennt + E-Mail)
+- [x] Frontend: Verbindung trennen Button
+- [x] Vitest: Google Drive Token-Refresh Test (27/27 bestanden)
