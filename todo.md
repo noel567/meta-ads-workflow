@@ -130,8 +130,8 @@
 - [x] Alle 25 Tests bestanden ✓
 
 ## Offene Punkte (nächste Iteration)
-- [ ] Scan-Protokoll / History UI-Seite (Konkurrenten-Seite Tab)
-- [ ] Batch-Edit-Funktion (Body, CTA, Hooks inline bearbeiten)
-- [ ] Automatischer Google Drive Upload nach Batch-Generierung im Scheduler
-- [ ] Tägliche Zusammenfassung als Google Doc nach Scheduler-Lauf
-- [ ] Ordnerstruktur in Drive: /Easy Signals Ads/YYYY-MM-DD/Konkurrent/
+- [x] Scan-Protokoll / History UI-Seite (in Competitors-Seite integriert)
+- [x] Batch-Edit-Funktion (Body, CTA, Hooks inline bearbeiten)
+- [x] Automatischer Google Drive Upload nach Batch-Generierung im Scheduler
+- [x] Tägliche Zusammenfassung als Google Doc nach Scheduler-Lauf
+- [x] Ordnerstruktur in Drive: /Easy Signals Ads/YYYY-MM-DD/Konkurrent/

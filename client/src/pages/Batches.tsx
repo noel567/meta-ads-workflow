@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import {
   Sparkles, Copy, Trash2, FileText, Video, Upload, CheckCircle2,
-  ChevronDown, ChevronUp, Zap, Clock, ExternalLink, BookOpen
+  ChevronDown, ChevronUp, Zap, Clock, ExternalLink, BookOpen, Pencil, Save, X
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -40,6 +40,8 @@ export default function Batches() {
   const [adText, setAdText] = useState("");
   const [competitorName, setCompetitorName] = useState("");
   const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{ body: string; cta: string; hook1: string; hook2: string; hook3: string; heygenScript: string }>({ body: "", cta: "", hook1: "", hook2: "", hook3: "", heygenScript: "" });
 
   const { data: batches, refetch } = trpc.batches.list.useQuery(undefined, { enabled: isAuthenticated });
   const { data: driveConnection } = trpc.googleDrive.getConnection.useQuery(undefined, { enabled: isAuthenticated });
@@ -68,6 +70,15 @@ export default function Batches() {
     onError: (e) => toast.error(e.message),
   });
 
+  const updateMutation = trpc.batches.update.useMutation({
+    onSuccess: () => {
+      toast.success("Batch gespeichert!");
+      setEditingId(null);
+      refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const uploadDriveMutation = trpc.googleDrive.uploadBatch.useMutation({
     onSuccess: (data) => {
       setUploadingId(null);
@@ -85,6 +96,22 @@ export default function Batches() {
     },
     onError: (e) => { setUploadingId(null); toast.error(e.message); },
   });
+
+  const startEdit = (batch: { id: number; body?: string | null; cta?: string | null; hook1?: string | null; hook2?: string | null; hook3?: string | null; heygenScript?: string | null }) => {
+    setEditingId(batch.id);
+    setEditForm({
+      body: batch.body || "",
+      cta: batch.cta || "",
+      hook1: batch.hook1 || "",
+      hook2: batch.hook2 || "",
+      hook3: batch.hook3 || "",
+      heygenScript: batch.heygenScript || "",
+    });
+  };
+
+  const saveEdit = (id: number) => {
+    updateMutation.mutate({ id, ...editForm });
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -260,6 +287,16 @@ export default function Batches() {
                         <Upload className="w-3.5 h-3.5" />
                         Drive
                       </Button>
+                      {/* Edit */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => editingId === batch.id ? setEditingId(null) : startEdit(batch)}
+                        title="Batch bearbeiten"
+                      >
+                        {editingId === batch.id ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                      </Button>
                       {/* Expand */}
                       <Button
                         variant="ghost"
@@ -284,6 +321,43 @@ export default function Batches() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Edit Form */}
+                  {editingId === batch.id && (
+                    <div className="mt-4 border-t border-border pt-4 space-y-3">
+                      <p className="text-xs font-medium text-primary">Batch bearbeiten</p>
+                      {([
+                        { key: "hook1", label: "Hook 1 – Neugier" },
+                        { key: "hook2", label: "Hook 2 – Problem/Schmerz" },
+                        { key: "hook3", label: "Hook 3 – Ergebnis" },
+                        { key: "body", label: "Body" },
+                        { key: "cta", label: "CTA" },
+                        { key: "heygenScript", label: "HeyGen Skript" },
+                      ] as const).map(({ key, label }) => (
+                        <div key={key} className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">{label}</Label>
+                          <Textarea
+                            value={editForm[key]}
+                            onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                            rows={key === "body" || key === "heygenScript" ? 4 : 2}
+                            className="text-sm resize-none"
+                          />
+                        </div>
+                      ))}
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => saveEdit(batch.id)}
+                          disabled={updateMutation.isPending}
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          {updateMutation.isPending ? "Speichert..." : "Speichern"}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Abbrechen</Button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Expanded Content */}
                   {expandedId === batch.id && (

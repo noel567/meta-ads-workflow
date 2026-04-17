@@ -3,7 +3,7 @@
  * Läuft täglich um 07:00 Uhr und scannt alle aktiven Konkurrenten.
  */
 
-import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor } from "./db";
+import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor, getGoogleDriveConnection, updateAdBatch, createDocument } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 
@@ -93,6 +93,69 @@ Antworte NUR im JSON-Format:
   return JSON.parse(typeof content === "string" ? content : JSON.stringify(content)) as {
     body: string; cta: string; hook1: string; hook2: string; hook3: string; heygenScript: string;
   };
+}
+
+// ─── Google Drive Helpers ────────────────────────────────────────────────────
+
+async function driveCreateFolder(accessToken: string, name: string, parentId?: string): Promise<string | null> {
+  try {
+    // First: check if folder already exists (idempotent)
+    const parentQuery = parentId ? ` and '${parentId}' in parents` : " and 'root' in parents";
+    const q = `name='${name.replace(/'/g, "\\'")}'${parentQuery} and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const searchUrl = new URL("https://www.googleapis.com/drive/v3/files");
+    searchUrl.searchParams.set("q", q);
+    searchUrl.searchParams.set("fields", "files(id,name)");
+    const searchRes = await fetch(searchUrl.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const searchData = await searchRes.json();
+    if (!searchData.error && searchData.files?.length > 0) {
+      return searchData.files[0].id as string; // Reuse existing folder
+    }
+
+    // Create new folder if not found
+    const metadata: Record<string, unknown> = { name, mimeType: "application/vnd.google-apps.folder" };
+    if (parentId) metadata.parents = [parentId];
+    const res = await fetch("https://www.googleapis.com/drive/v3/files", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(metadata),
+    });
+    const data = await res.json();
+    if (data.error) return null;
+    return data.id as string;
+  } catch {
+    return null;
+  }
+}
+
+async function driveUploadFile(accessToken: string, name: string, content: string, folderId?: string): Promise<{ id: string; webViewLink?: string } | null> {
+  try {
+    const metadata: Record<string, unknown> = { name, mimeType: "application/vnd.google-apps.document" };
+    if (folderId) metadata.parents = [folderId];
+    const boundary = "batch_boundary_sched";
+    const body = [
+      `--${boundary}`,
+      "Content-Type: application/json; charset=UTF-8",
+      "",
+      JSON.stringify(metadata),
+      `--${boundary}`,
+      "Content-Type: text/plain; charset=UTF-8",
+      "",
+      content,
+      `--${boundary}--`,
+    ].join("\r\n");
+    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+      body,
+    });
+    const data = await res.json();
+    if (data.error) return null;
+    return data as { id: string; webViewLink?: string };
+  } catch {
+    return null;
+  }
 }
 
 // ─── Daily Scan Job ───────────────────────────────────────────────────────────
@@ -232,6 +295,63 @@ export async function runDailyScan(userId: number): Promise<{
         });
       }
     }
+  }
+
+  // ─── Auto Google Drive Upload + Daily Summary ──────────────────────────────
+  try {
+    const driveConn = await getGoogleDriveConnection(userId);
+    if (driveConn?.isActive && driveConn.accessToken) {
+      const dateStr = new Date().toISOString().split("T")[0];
+
+      // Create date folder under root
+      const dateFolderId = await driveCreateFolder(driveConn.accessToken, dateStr, driveConn.rootFolderId || undefined);
+
+      // Upload each batch to competitor subfolder
+      const { getAdBatches } = await import("./db");
+      const todayBatches = (await getAdBatches(userId)).filter(b => {
+        const d = new Date(b.generatedAt);
+        return d.toISOString().split("T")[0] === dateStr && !b.googleDriveFileId;
+      });
+
+      for (const batch of todayBatches) {
+        try {
+          // Create competitor subfolder under date folder
+          const competitorFolderId = batch.competitorName && dateFolderId
+            ? await driveCreateFolder(driveConn.accessToken, batch.competitorName, dateFolderId)
+            : dateFolderId;
+
+          const content = `# ${batch.title}\n\n## 🎯 Hook 1\n${batch.hook1}\n\n## 🎯 Hook 2\n${batch.hook2}\n\n## 🎯 Hook 3\n${batch.hook3}\n\n## 📝 Body\n${batch.body}\n\n## 🚀 CTA\n${batch.cta}\n\n---\n\n## 🤖 HeyGen Skript\n${batch.heygenScript || `${batch.hook1}\n\n${batch.body}\n\n${batch.cta}`}\n\n---\n*Automatisch generiert am ${new Date().toLocaleDateString("de-DE")} | Quelle: ${batch.competitorName || "Auto"} | Easy Signals*`;
+
+          const file = await driveUploadFile(driveConn.accessToken, `${batch.title}.md`, content, competitorFolderId || undefined);
+          if (file) {
+            await updateAdBatch(batch.id, userId, { googleDriveFileId: file.id, googleDriveUrl: file.webViewLink, status: "exported" });
+          }
+        } catch {
+          // Non-critical: continue with next batch
+        }
+      }
+
+      // Create daily summary Google Doc
+      if (batchesCreated > 0 && dateFolderId) {
+        const summaryContent = `# Easy Signals – Täglicher Ad-Bericht ${dateStr}\n\n## Zusammenfassung\n- Gescannte Konkurrenten: ${activeCompetitors.length}\n- Neue Ads gefunden: ${totalNewAds}\n- Batches erstellt: ${batchesCreated}${errors.length > 0 ? `\n- Fehler: ${errors.length}` : ""}\n\n## Konkurrenten\n${activeCompetitors.map(c => `- **${c.name}** (${c.country})`).join("\n")}\n\n## Nächste Schritte\n1. Batches im Dashboard prüfen und bearbeiten\n2. Beste Hooks für Teleprompter-Aufnahmen auswählen\n3. HeyGen-Skripte für Avatar-Videos nutzen\n\n---\n*Automatisch erstellt von Easy Signals Ad Workflow*`;
+
+        const summaryFile = await driveUploadFile(driveConn.accessToken, `Easy Signals – Tagesbericht ${dateStr}.md`, summaryContent, dateFolderId);
+        if (summaryFile) {
+          await createDocument({
+            userId,
+            title: `Tagesbericht ${dateStr}`,
+            content: summaryContent,
+            format: "markdown",
+            sourceType: "analysis",
+            googleDriveFileId: summaryFile.id,
+            googleDriveUrl: summaryFile.webViewLink,
+          });
+        }
+      }
+    }
+  } catch (driveError) {
+    console.error("[Scheduler] Google Drive upload failed:", driveError);
+    // Non-critical
   }
 
   // Notify owner
