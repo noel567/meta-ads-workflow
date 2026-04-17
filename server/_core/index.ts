@@ -7,6 +7,8 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { startScheduler, runDailyScan } from "../scheduler";
+import { ENV } from "./env";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -60,6 +62,13 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // Start daily scheduler for owner
+  if (ENV.ownerOpenId) {
+    // We need the owner's userId – start scheduler lazily after first login
+    // The scheduler is also triggerable via tRPC (system.triggerDailyScan)
+    console.log("[Scheduler] Ready – will start after owner login");
+  }
 }
 
 startServer().catch(console.error);

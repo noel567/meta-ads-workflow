@@ -15,6 +15,13 @@
       "when": 1776369522454,
       "tag": "0001_closed_thundra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1776458589492,
+      "tag": "0002_unusual_stepford_cuckoos",
+      "breakpoints": true
     }
   ]
 }

@@ -31,6 +31,9 @@ import {
   MonitorPlay,
   PanelLeft,
   Plug,
+  Users,
+  Sparkles,
+  Settings,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -44,9 +47,12 @@ const menuItems = [
   { icon: Plug, label: "Meta Verbinden", path: "/connect" },
   { icon: BarChart3, label: "Meine Ads", path: "/analytics" },
   { icon: Library, label: "Ad Library", path: "/ad-library" },
+  { icon: Users, label: "Konkurrenten", path: "/competitors" },
+  { icon: Sparkles, label: "Batch Generator", path: "/batches" },
   { icon: BookOpen, label: "Transkripte", path: "/transcripts" },
   { icon: MonitorPlay, label: "Teleprompter", path: "/teleprompter" },
   { icon: FileText, label: "Dokumente", path: "/documents" },
+  { icon: Settings, label: "Einstellungen", path: "/settings" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

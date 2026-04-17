@@ -1,263 +1,358 @@
-import DashboardLayout from "@/components/DashboardLayout";
+import { useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import {
-  BarChart3,
-  BookOpen,
-  FileText,
-  Library,
-  MonitorPlay,
-  Plug,
-  TrendingUp,
-  Zap,
-} from "lucide-react";
-import { useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  sub,
-  color = "primary",
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ElementType;
-  sub?: string;
-  color?: string;
-}) {
-  const colorMap: Record<string, string> = {
-    primary: "text-primary bg-primary/10 border-primary/20",
-    emerald: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-    amber: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-    violet: "text-violet-400 bg-violet-400/10 border-violet-400/20",
-    cyan: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
-  };
-  const cls = colorMap[color] || colorMap.primary;
-
-  return (
-    <Card className="stat-card bg-card border-border/50 hover:border-border transition-all">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{label}</p>
-            <p className="text-2xl font-semibold mt-1 text-foreground">{value}</p>
-            {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-          </div>
-          <div className={`h-9 w-9 rounded-lg border flex items-center justify-center ${cls}`}>
-            <Icon className="h-4 w-4" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-const quickActions = [
-  {
-    icon: Plug,
-    label: "Meta verbinden",
-    desc: "Ad Account verknüpfen",
-    path: "/connect",
-    color: "text-blue-400",
-    bg: "bg-blue-400/10 border-blue-400/20",
-  },
-  {
-    icon: BarChart3,
-    label: "Ads analysieren",
-    desc: "KPIs & KI-Insights",
-    path: "/analytics",
-    color: "text-violet-400",
-    bg: "bg-violet-400/10 border-violet-400/20",
-  },
-  {
-    icon: Library,
-    label: "Ad Library",
-    desc: "Konkurrenten recherchieren",
-    path: "/ad-library",
-    color: "text-cyan-400",
-    bg: "bg-cyan-400/10 border-cyan-400/20",
-  },
-  {
-    icon: BookOpen,
-    label: "Transkripte",
-    desc: "Skripte erstellen & verwalten",
-    path: "/transcripts",
-    color: "text-emerald-400",
-    bg: "bg-emerald-400/10 border-emerald-400/20",
-  },
-  {
-    icon: MonitorPlay,
-    label: "Teleprompter",
-    desc: "Aufnahme-Vorlage starten",
-    path: "/teleprompter",
-    color: "text-amber-400",
-    bg: "bg-amber-400/10 border-amber-400/20",
-  },
-  {
-    icon: FileText,
-    label: "Dokumente",
-    desc: "Exporte & Berichte",
-    path: "/documents",
-    color: "text-rose-400",
-    bg: "bg-rose-400/10 border-rose-400/20",
-  },
-];
+import { toast } from "sonner";
+import { getLoginUrl } from "@/const";
+import { useLocation } from "wouter";
+import {
+  BarChart3, Users, Sparkles, BookOpen, MonitorPlay, HardDrive,
+  Zap, ArrowRight, TrendingUp, Clock, CheckCircle2, AlertCircle,
+  Play, RefreshCw, FileText, Target
+} from "lucide-react";
 
 export default function Home() {
-  const [, setLocation] = useLocation();
-  const { data: stats, isLoading } = trpc.dashboard.stats.useQuery();
-  const { data: connection } = trpc.meta.getConnection.useQuery();
+  const { user, loading, isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
+  const [runningDailyScan, setRunningDailyScan] = useState(false);
+
+  const { data: stats, refetch } = trpc.dashboard.stats.useQuery(undefined, {
+    enabled: isAuthenticated,
+    refetchInterval: 30000,
+  });
+
+  const { data: metaConn } = trpc.meta.getConnection.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: driveConn } = trpc.googleDrive.getConnection.useQuery(undefined, { enabled: isAuthenticated });
+
+  const dailyScanMutation = trpc.automation.triggerDailyScan.useMutation({
+    onSuccess: (data) => {
+      setRunningDailyScan(false);
+      toast.success(
+        `Scan abgeschlossen: ${data.scanned} Konkurrenten, ${data.totalNewAds} neue Ads, ${data.batchesCreated} Batches erstellt`
+      );
+      refetch();
+    },
+    onError: (e) => { setRunningDailyScan(false); toast.error(e.message); },
+  });
+
+  const handleDailyScan = () => {
+    setRunningDailyScan(true);
+    dailyScanMutation.mutate();
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <p className="text-muted-foreground">Bitte anmelden um fortzufahren.</p>
+          <Button onClick={() => window.location.href = getLoginUrl()}>Anmelden</Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const quickActions = [
+    {
+      icon: Users,
+      label: "Konkurrenten scannen",
+      description: "Alle aktiven Konkurrenten nach neuen Ads durchsuchen",
+      path: "/competitors",
+      color: "text-blue-400",
+      bg: "bg-blue-500/10",
+    },
+    {
+      icon: Sparkles,
+      label: "Batch generieren",
+      description: "KI erstellt Body + CTA + 3 Hooks aus einem Ad",
+      path: "/batches",
+      color: "text-primary",
+      bg: "bg-primary/10",
+    },
+    {
+      icon: MonitorPlay,
+      label: "Teleprompter",
+      description: "Skript auswählen und direkt aufnehmen",
+      path: "/teleprompter",
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
+    },
+    {
+      icon: BarChart3,
+      label: "Ads analysieren",
+      description: "KI-Insights zu deinen laufenden Kampagnen",
+      path: "/analytics",
+      color: "text-amber-400",
+      bg: "bg-amber-500/10",
+    },
+  ];
 
   return (
     <DashboardLayout>
-      <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="p-6 space-y-6 max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-            {connection ? (
-              <Badge variant="outline" className="badge-active text-xs">
-                Verbunden
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="badge-archived text-xs">
-                Nicht verbunden
-              </Badge>
-            )}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">
+              Guten Morgen{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 👋
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Dein täglicher Ad-Produktions-Workflow – von Konkurrenz-Analyse bis HeyGen-Skript
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Dein zentraler Workflow für Meta Ads Analyse und Creative-Produktion.
-          </p>
+          <Button
+            onClick={handleDailyScan}
+            disabled={runningDailyScan}
+            className="gap-2"
+            size="sm"
+          >
+            {runningDailyScan ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Scannt...
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4" />
+                Täglichen Scan starten
+              </>
+            )}
+          </Button>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-          {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <Card key={i} className="bg-card border-border/50">
-                <CardContent className="p-5">
-                  <Skeleton className="h-4 w-20 mb-2" />
-                  <Skeleton className="h-7 w-12" />
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <>
-              <StatCard label="Kampagnen" value={stats?.campaigns ?? 0} icon={BarChart3} color="primary" />
-              <StatCard label="Eigene Ads" value={stats?.ads ?? 0} icon={TrendingUp} color="violet" />
-              <StatCard label="Konkurrenz-Ads" value={stats?.competitorAds ?? 0} icon={Library} color="cyan" />
-              <StatCard label="Transkripte" value={stats?.transcripts ?? 0} icon={BookOpen} color="emerald" />
-              <StatCard label="Dokumente" value={stats?.documents ?? 0} icon={FileText} color="amber" />
-            </>
-          )}
+        {/* Connection Status */}
+        <div className="flex gap-3 flex-wrap">
+          <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border ${metaConn ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-muted/30 border-border text-muted-foreground"}`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${metaConn ? "bg-emerald-400" : "bg-muted-foreground"}`} />
+            Meta Ads {metaConn ? `verbunden (${metaConn.adAccountName})` : "nicht verbunden"}
+          </div>
+          <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border ${driveConn ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-muted/30 border-border text-muted-foreground"}`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${driveConn ? "bg-emerald-400" : "bg-muted-foreground"}`} />
+            Google Drive {driveConn ? `verbunden (${driveConn.rootFolderName})` : "nicht verbunden"}
+          </div>
+          <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border bg-primary/5 border-primary/20 text-primary">
+            <Clock className="w-3 h-3" />
+            Täglicher Auto-Scan: 09:00 Uhr
+          </div>
         </div>
 
-        {/* Performance Overview */}
+        {/* KPI Stats */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-card border-border">
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Users className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold text-foreground">{stats.activeCompetitors}</p>
+                    <p className="text-xs text-muted-foreground">Aktive Konkurrenten</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                    <Target className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold text-foreground">{stats.competitorAds}</p>
+                    <p className="text-xs text-muted-foreground">Konkurrenz-Ads</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold text-foreground">{stats.batches}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Batches
+                      {stats.todayBatches > 0 && (
+                        <span className="ml-1 text-emerald-400">+{stats.todayBatches} heute</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                    <BookOpen className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold text-foreground">{stats.transcripts}</p>
+                    <p className="text-xs text-muted-foreground">Transkripte</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Meta Ads Performance */}
         {stats && stats.ads > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <Card className="bg-card border-border/50">
-              <CardContent className="p-5">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Gesamtausgaben (30d)</p>
-                <p className="text-2xl font-semibold mt-1">€{stats.totalSpend.toFixed(2)}</p>
+          <div className="grid grid-cols-3 gap-4">
+            <Card className="bg-card border-border">
+              <CardContent className="pt-5 pb-4">
+                <p className="text-xs text-muted-foreground mb-1">Gesamtausgaben (30 Tage)</p>
+                <p className="text-xl font-semibold text-foreground">€{stats.totalSpend.toFixed(2)}</p>
               </CardContent>
             </Card>
-            <Card className="bg-card border-border/50">
-              <CardContent className="p-5">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Ø CTR</p>
-                <p className="text-2xl font-semibold mt-1">{stats.avgCTR.toFixed(2)}%</p>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-5 pb-4">
+                <p className="text-xs text-muted-foreground mb-1">Ø CTR</p>
+                <p className="text-xl font-semibold text-foreground">{stats.avgCTR.toFixed(2)}%</p>
               </CardContent>
             </Card>
-            <Card className="bg-card border-border/50">
-              <CardContent className="p-5">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Ø ROAS</p>
-                <p className="text-2xl font-semibold mt-1">
-                  {stats.avgROAS > 0 ? `${stats.avgROAS.toFixed(2)}x` : "—"}
-                </p>
+            <Card className="bg-card border-border">
+              <CardContent className="pt-5 pb-4">
+                <p className="text-xs text-muted-foreground mb-1">Ø ROAS</p>
+                <p className="text-xl font-semibold text-foreground">{stats.avgROAS > 0 ? stats.avgROAS.toFixed(2) : "–"}</p>
               </CardContent>
             </Card>
           </div>
         )}
 
         {/* Quick Actions */}
-        <div className="mb-8">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
-            Schnellzugriff
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {quickActions.map((action) => (
+        <div>
+          <h2 className="text-sm font-medium text-muted-foreground mb-3">Schnellzugriff</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {quickActions.map(action => (
               <button
                 key={action.path}
-                onClick={() => setLocation(action.path)}
-                className="group flex flex-col items-center gap-3 p-4 rounded-xl border border-border/50 bg-card hover:border-border hover:bg-card/80 transition-all text-center"
+                onClick={() => navigate(action.path)}
+                className="text-left p-4 rounded-xl bg-card border border-border hover:border-primary/30 hover:bg-card/80 transition-all group"
               >
-                <div className={`h-10 w-10 rounded-xl border flex items-center justify-center ${action.bg} transition-transform group-hover:scale-110`}>
-                  <action.icon className={`h-5 w-5 ${action.color}`} />
+                <div className={`w-9 h-9 rounded-lg ${action.bg} flex items-center justify-center mb-3`}>
+                  <action.icon className={`w-4 h-4 ${action.color}`} />
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-foreground leading-tight">{action.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{action.desc}</p>
-                </div>
+                <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{action.label}</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{action.description}</p>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Recent Transcripts */}
-        {stats && stats.recentTranscripts.length > 0 && (
+        {/* Workflow Steps */}
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Täglicher Workflow</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start gap-0 overflow-x-auto pb-2">
+              {[
+                { step: "1", label: "Konkurrenten scannen", icon: Users, desc: "Neue Ads täglich automatisch", color: "text-blue-400" },
+                { step: "2", label: "Transkript extrahieren", icon: FileText, desc: "KI analysiert Ad-Texte", color: "text-amber-400" },
+                { step: "3", label: "Batch generieren", icon: Sparkles, desc: "Body + CTA + 3 Hooks", color: "text-primary" },
+                { step: "4", label: "HeyGen Skript", icon: Play, desc: "Avatar-Video erstellen", color: "text-purple-400" },
+                { step: "5", label: "Teleprompter", icon: MonitorPlay, desc: "Selbst aufnehmen", color: "text-emerald-400" },
+                { step: "6", label: "Google Drive", icon: HardDrive, desc: "Automatisch ablegen", color: "text-rose-400" },
+              ].map((item, i, arr) => (
+                <div key={item.step} className="flex items-center flex-shrink-0">
+                  <div className="flex flex-col items-center gap-2 w-28">
+                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
+                      <item.icon className={`w-4 h-4 ${item.color}`} />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium text-foreground">{item.label}</p>
+                      <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    </div>
+                  </div>
+                  {i < arr.length - 1 && (
+                    <ArrowRight className="w-4 h-4 text-muted-foreground/40 mx-1 flex-shrink-0 -mt-4" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Batches */}
+        {stats && stats.recentBatches && stats.recentBatches.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Zuletzt bearbeitet
-              </h2>
-              <Button variant="ghost" size="sm" onClick={() => setLocation("/transcripts")} className="text-xs text-muted-foreground">
-                Alle anzeigen
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-medium text-muted-foreground">Neueste Batches</h2>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate("/batches")}>
+                Alle anzeigen <ArrowRight className="w-3 h-3" />
               </Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {stats.recentTranscripts.map((t) => (
-                <Card
-                  key={t.id}
-                  className="bg-card border-border/50 hover:border-border cursor-pointer transition-all"
-                  onClick={() => setLocation("/transcripts")}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center shrink-0">
-                        <BookOpen className="h-4 w-4 text-emerald-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{t.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                          {t.content.slice(0, 80)}...
-                        </p>
-                      </div>
+            <div className="space-y-2">
+              {stats.recentBatches.map((batch: { id: number; title: string; status: string | null; competitorName?: string | null; generatedAt: Date }) => (
+                <div key={batch.id} className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm text-foreground truncate">{batch.title}</p>
+                      {batch.competitorName && (
+                        <p className="text-xs text-muted-foreground">von {batch.competitorName}</p>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Badge className={`text-xs py-0 ${batch.status === "ready" ? "bg-primary/10 text-primary" : batch.status === "exported" ? "bg-emerald-500/10 text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                      {batch.status === "ready" ? "Bereit" : batch.status === "exported" ? "Exportiert" : batch.status}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(batch.generatedAt).toLocaleDateString("de-DE")}
+                    </span>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Empty state when not connected */}
-        {!connection && (
-          <Card className="border-dashed border-border/50 bg-card/50">
-            <CardContent className="p-8 text-center">
-              <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
-                <Zap className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="font-semibold mb-2">Starte deinen Workflow</h3>
-              <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
-                Verbinde deinen Meta Ads Manager, um deine Kampagnen zu analysieren und KI-gestützte Optimierungsvorschläge zu erhalten.
-              </p>
-              <Button onClick={() => setLocation("/connect")} size="sm">
-                <Plug className="h-4 w-4 mr-2" />
-                Meta verbinden
-              </Button>
+        {/* Setup Checklist */}
+        {(!metaConn || !driveConn || (stats && stats.competitors === 0)) && (
+          <Card className="bg-card border-border border-dashed">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Setup-Checkliste</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {[
+                { done: !!metaConn, label: "Meta Ads Manager verbinden", path: "/connect" },
+                { done: !!driveConn, label: "Google Drive verbinden", path: "/settings" },
+                { done: stats ? stats.competitors > 0 : false, label: "Ersten Konkurrenten hinzufügen", path: "/competitors" },
+                { done: stats ? stats.batches > 0 : false, label: "Ersten Batch generieren", path: "/batches" },
+              ].map(item => (
+                <button
+                  key={item.label}
+                  onClick={() => !item.done && navigate(item.path)}
+                  className={`w-full flex items-center gap-3 text-left text-sm py-1.5 ${item.done ? "cursor-default" : "hover:text-primary"}`}
+                >
+                  {item.done ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border border-muted-foreground/40 flex-shrink-0" />
+                  )}
+                  <span className={item.done ? "text-muted-foreground line-through" : "text-foreground"}>
+                    {item.label}
+                  </span>
+                  {!item.done && <ArrowRight className="w-3 h-3 ml-auto text-muted-foreground" />}
+                </button>
+              ))}
             </CardContent>
           </Card>
         )}

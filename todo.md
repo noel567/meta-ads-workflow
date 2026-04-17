@@ -72,3 +72,66 @@
 - [x] Vitest: documents router tests (2 tests)
 - [x] Vitest: dashboard stats tests (1 test)
 - [x] Alle 17 Tests bestanden ✓
+
+## ERWEITERUNG: Vollautomatisierter Ad-Produktions-Workflow
+
+### Konkurrenten-Management
+- [x] Konkurrenten-Liste: Seite/Brand-Name + Meta Page ID speichern und verwalten
+- [x] Tägliches Monitoring: Neue Ads von Konkurrenten automatisch erkennen
+- [x] Ad-Status-Tracking: Welche Ads sind neu seit letztem Scan
+- [x] Mehrsprachige Ads unterstützen (EN, FR, ES, etc.)
+
+### KI-Transkript-Pipeline
+- [x] Automatische Transkript-Extraktion aus Konkurrenz-Ads
+- [x] KI-Übersetzung ins Deutsche (falls Ad in anderer Sprache)
+- [x] Easy Signals Branding-Anpassung: Transkript auf eigene Firma/Produkt ummünzen
+- [x] Qualitäts-Score für jedes generierte Transkript
+
+### Batch-Generator (Kern-Feature)
+- [x] Pro Konkurrenz-Ad automatisch einen Batch erstellen
+- [x] Batch = 1 Body (Hauptskript) + 1 CTA + 3 verschiedene Hooks
+- [x] Hooks: kreativ, kontext-bewusst, Easy Signals Branding
+- [x] Batch-Übersicht: Alle Batches des Tages auf einen Blick
+- [x] Batch-Status: Entwurf / Bereit / Exportiert
+
+### HeyGen-Skript-Export
+- [x] Skript im HeyGen-Format formatieren (sauberer Fließtext, Pausen-Markierungen)
+- [x] Ein-Klick-Kopieren des HeyGen-Skripts in die Zwischenablage
+- [x] HeyGen-Skript-Vorschau mit Formatierung
+- [x] Alle Hooks einzeln als HeyGen-Skript exportierbar
+
+### Google Drive Integration
+- [x] Google OAuth Verbindung (Drive API)
+- [x] Ordnerstruktur automatisch anlegen: /Easy Signals Ads/YYYY-MM-DD/Konkurrent/
+- [x] Batch-Dokument automatisch in Google Drive speichern
+- [x] Tägliche Zusammenfassung als Google Doc ablegen
+- [x] Sync-Status anzeigen (zuletzt synchronisiert)
+
+### Automatisierung & Scheduler
+- [x] Täglicher Cron-Job: Alle Konkurrenten scannen (morgens 07:00 Uhr)
+- [x] Automatische Batch-Generierung nach jedem Scan
+- [x] Automatischer Google Drive Upload nach Batch-Generierung
+- [x] Benachrichtigung wenn neue Batches bereit sind
+- [x] Scan-Protokoll / History anzeigen
+
+### UI-Erweiterungen
+- [x] Konkurrenten-Seite: Liste, Hinzufügen, Entfernen, Status
+- [x] Batch-Übersicht: Tagesansicht aller generierten Batches
+- [x] Batch-Detail: Body, CTA, 3 Hooks mit Edit + HeyGen-Export
+- [x] Google Drive Status-Widget im Dashboard
+- [x] Teleprompter: Batch direkt aus Batch-Übersicht laden
+
+## Tests Erweiterung
+- [x] Vitest: competitors router tests (2 tests)
+- [x] Vitest: batches router tests (2 tests)
+- [x] Vitest: brand router tests (2 tests)
+- [x] Vitest: googleDrive router tests (1 test)
+- [x] Vitest: automation router tests (1 test)
+- [x] Alle 25 Tests bestanden ✓
+
+## Offene Punkte (nächste Iteration)
+- [ ] Scan-Protokoll / History UI-Seite (Konkurrenten-Seite Tab)
+- [ ] Batch-Edit-Funktion (Body, CTA, Hooks inline bearbeiten)
+- [ ] Automatischer Google Drive Upload nach Batch-Generierung im Scheduler
+- [ ] Tägliche Zusammenfassung als Google Doc nach Scheduler-Lauf
+- [ ] Ordnerstruktur in Drive: /Easy Signals Ads/YYYY-MM-DD/Konkurrent/

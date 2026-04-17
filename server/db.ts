@@ -1,4 +1,4 @@
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -15,6 +15,16 @@ import {
   InsertTranscript,
   documents,
   InsertDocument,
+  competitors,
+  InsertCompetitor,
+  adBatches,
+  InsertAdBatch,
+  brandSettings,
+  InsertBrandSettings,
+  googleDriveConnections,
+  InsertGoogleDriveConnection,
+  scanLogs,
+  InsertScanLog,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -93,22 +103,14 @@ export async function getMetaConnection(userId: number) {
 export async function upsertMetaConnection(data: InsertMetaConnection) {
   const db = await getDb();
   if (!db) return;
-  // Deactivate old connections for this user
-  await db
-    .update(metaConnections)
-    .set({ isActive: false })
-    .where(eq(metaConnections.userId, data.userId));
-  // Insert new connection
+  await db.update(metaConnections).set({ isActive: false }).where(eq(metaConnections.userId, data.userId));
   await db.insert(metaConnections).values({ ...data, isActive: true });
 }
 
 export async function deleteMetaConnection(userId: number) {
   const db = await getDb();
   if (!db) return;
-  await db
-    .update(metaConnections)
-    .set({ isActive: false })
-    .where(eq(metaConnections.userId, userId));
+  await db.update(metaConnections).set({ isActive: false }).where(eq(metaConnections.userId, userId));
 }
 
 // ─── Campaigns ────────────────────────────────────────────────────────────────
@@ -123,10 +125,7 @@ export async function upsertCampaigns(userId: number, data: InsertCampaign[]) {
   const db = await getDb();
   if (!db) return;
   for (const campaign of data) {
-    await db
-      .insert(campaigns)
-      .values({ ...campaign, userId })
-      .onDuplicateKeyUpdate({ set: { ...campaign, syncedAt: new Date() } });
+    await db.insert(campaigns).values({ ...campaign, userId }).onDuplicateKeyUpdate({ set: { ...campaign, syncedAt: new Date() } });
   }
 }
 
@@ -148,10 +147,7 @@ export async function upsertAds(userId: number, data: InsertAd[]) {
   const db = await getDb();
   if (!db) return;
   for (const ad of data) {
-    await db
-      .insert(ads)
-      .values({ ...ad, userId })
-      .onDuplicateKeyUpdate({ set: { ...ad, syncedAt: new Date() } });
+    await db.insert(ads).values({ ...ad, userId }).onDuplicateKeyUpdate({ set: { ...ad, syncedAt: new Date() } });
   }
 }
 
@@ -169,10 +165,26 @@ export async function getCompetitorAds(userId: number) {
   return db.select().from(competitorAds).where(eq(competitorAds.userId, userId)).orderBy(desc(competitorAds.savedAt));
 }
 
+export async function getCompetitorAdsByCompetitor(userId: number, competitorId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(competitorAds)
+    .where(and(eq(competitorAds.userId, userId), eq(competitorAds.competitorId, competitorId)))
+    .orderBy(desc(competitorAds.savedAt));
+}
+
 export async function saveCompetitorAd(data: InsertCompetitorAd) {
   const db = await getDb();
   if (!db) return;
   await db.insert(competitorAds).values(data);
+}
+
+export async function markCompetitorAdProcessed(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(competitorAds).set({ isProcessed: true }).where(eq(competitorAds.id, id));
 }
 
 export async function deleteCompetitorAd(id: number, userId: number) {
@@ -203,17 +215,13 @@ export async function getTranscriptById(id: number, userId: number) {
 export async function createTranscript(data: InsertTranscript) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.insert(transcripts).values(data);
-  return result;
+  return db.insert(transcripts).values(data);
 }
 
 export async function updateTranscript(id: number, userId: number, data: Partial<InsertTranscript>) {
   const db = await getDb();
   if (!db) return;
-  await db
-    .update(transcripts)
-    .set(data)
-    .where(and(eq(transcripts.id, id), eq(transcripts.userId, userId)));
+  await db.update(transcripts).set(data).where(and(eq(transcripts.id, id), eq(transcripts.userId, userId)));
 }
 
 export async function deleteTranscript(id: number, userId: number) {
@@ -236,8 +244,185 @@ export async function createDocument(data: InsertDocument) {
   return db.insert(documents).values(data);
 }
 
+export async function updateDocument(id: number, userId: number, data: Partial<InsertDocument>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(documents).set(data).where(and(eq(documents.id, id), eq(documents.userId, userId)));
+}
+
 export async function deleteDocument(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(documents).where(and(eq(documents.id, id), eq(documents.userId, userId)));
+}
+
+// ─── Competitors ──────────────────────────────────────────────────────────────
+
+export async function getCompetitors(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(competitors).where(eq(competitors.userId, userId)).orderBy(desc(competitors.createdAt));
+}
+
+export async function getCompetitorById(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(competitors)
+    .where(and(eq(competitors.id, id), eq(competitors.userId, userId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createCompetitor(data: InsertCompetitor) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.insert(competitors).values(data);
+  return result;
+}
+
+export async function updateCompetitor(id: number, userId: number, data: Partial<InsertCompetitor>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(competitors).set(data).where(and(eq(competitors.id, id), eq(competitors.userId, userId)));
+}
+
+export async function deleteCompetitor(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(competitors).where(and(eq(competitors.id, id), eq(competitors.userId, userId)));
+}
+
+export async function getActiveCompetitors(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(competitors)
+    .where(and(eq(competitors.userId, userId), eq(competitors.isActive, true)))
+    .orderBy(desc(competitors.createdAt));
+}
+
+// ─── Ad Batches ───────────────────────────────────────────────────────────────
+
+export async function getAdBatches(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(adBatches).where(eq(adBatches.userId, userId)).orderBy(desc(adBatches.generatedAt));
+}
+
+export async function getAdBatchById(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(adBatches)
+    .where(and(eq(adBatches.id, id), eq(adBatches.userId, userId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createAdBatch(data: InsertAdBatch) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return db.insert(adBatches).values(data);
+}
+
+export async function updateAdBatch(id: number, userId: number, data: Partial<InsertAdBatch>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(adBatches).set(data).where(and(eq(adBatches.id, id), eq(adBatches.userId, userId)));
+}
+
+export async function deleteAdBatch(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(adBatches).where(and(eq(adBatches.id, id), eq(adBatches.userId, userId)));
+}
+
+// ─── Brand Settings ───────────────────────────────────────────────────────────
+
+export async function getBrandSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(brandSettings).where(eq(brandSettings.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function upsertBrandSettings(data: InsertBrandSettings) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(brandSettings)
+    .values(data)
+    .onDuplicateKeyUpdate({
+      set: {
+        brandName: data.brandName,
+        brandDescription: data.brandDescription,
+        targetAudience: data.targetAudience,
+        toneOfVoice: data.toneOfVoice,
+        uniqueSellingPoints: data.uniqueSellingPoints,
+        callToActionDefault: data.callToActionDefault,
+        language: data.language,
+      },
+    });
+}
+
+// ─── Google Drive Connections ─────────────────────────────────────────────────
+
+export async function getGoogleDriveConnection(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(googleDriveConnections)
+    .where(and(eq(googleDriveConnections.userId, userId), eq(googleDriveConnections.isActive, true)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function upsertGoogleDriveConnection(data: InsertGoogleDriveConnection) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(googleDriveConnections)
+    .values(data)
+    .onDuplicateKeyUpdate({
+      set: {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        tokenExpiry: data.tokenExpiry,
+        rootFolderId: data.rootFolderId,
+        rootFolderName: data.rootFolderName,
+        isActive: true,
+      },
+    });
+}
+
+export async function deleteGoogleDriveConnection(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(googleDriveConnections).set({ isActive: false }).where(eq(googleDriveConnections.userId, userId));
+}
+
+// ─── Scan Logs ────────────────────────────────────────────────────────────────
+
+export async function getScanLogs(userId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(scanLogs).where(eq(scanLogs.userId, userId)).orderBy(desc(scanLogs.startedAt)).limit(limit);
+}
+
+export async function createScanLog(data: InsertScanLog) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.insert(scanLogs).values(data);
+  return result;
+}
+
+export async function updateScanLog(id: number, data: Partial<InsertScanLog>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(scanLogs).set(data).where(eq(scanLogs.id, id));
 }

@@ -11,6 +11,9 @@ import AdLibrary from "./pages/AdLibrary";
 import Transcripts from "./pages/Transcripts";
 import Teleprompter from "./pages/Teleprompter";
 import Documents from "./pages/Documents";
+import Competitors from "./pages/Competitors";
+import Batches from "./pages/Batches";
+import Settings from "./pages/Settings";
 
 function Router() {
   return (
@@ -19,9 +22,12 @@ function Router() {
       <Route path="/connect" component={MetaConnect} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/ad-library" component={AdLibrary} />
+      <Route path="/competitors" component={Competitors} />
+      <Route path="/batches" component={Batches} />
       <Route path="/transcripts" component={Transcripts} />
       <Route path="/teleprompter/:id?" component={Teleprompter} />
       <Route path="/documents" component={Documents} />
+      <Route path="/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

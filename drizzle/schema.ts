@@ -72,7 +72,6 @@ export const ads = mysqlTable("ads", {
   name: varchar("name", { length: 255 }).notNull(),
   status: varchar("status", { length: 32 }),
   adsetName: varchar("adsetName", { length: 255 }),
-  // KPIs
   impressions: bigint("impressions", { mode: "number" }),
   reach: bigint("reach", { mode: "number" }),
   clicks: bigint("clicks", { mode: "number" }),
@@ -82,7 +81,6 @@ export const ads = mysqlTable("ads", {
   cpm: float("cpm"),
   roas: float("roas"),
   conversions: float("conversions"),
-  // Creative
   creativeType: varchar("creativeType", { length: 32 }),
   thumbnailUrl: text("thumbnailUrl"),
   adText: text("adText"),
@@ -100,6 +98,7 @@ export type InsertAd = typeof ads.$inferInsert;
 export const competitorAds = mysqlTable("competitor_ads", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  competitorId: int("competitorId"),
   metaAdId: varchar("metaAdId", { length: 64 }),
   pageName: varchar("pageName", { length: 255 }),
   pageId: varchar("pageId", { length: 64 }),
@@ -112,6 +111,8 @@ export const competitorAds = mysqlTable("competitor_ads", {
   endDate: varchar("endDate", { length: 32 }),
   country: varchar("country", { length: 8 }),
   searchQuery: varchar("searchQuery", { length: 255 }),
+  detectedLanguage: varchar("detectedLanguage", { length: 16 }),
+  isProcessed: boolean("isProcessed").default(false).notNull(),
   rawData: json("rawData"),
   savedAt: timestamp("savedAt").defaultNow().notNull(),
 });
@@ -125,7 +126,7 @@ export const transcripts = mysqlTable("transcripts", {
   userId: int("userId").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content").notNull(),
-  sourceType: mysqlEnum("sourceType", ["competitor_ad", "manual", "ai_generated"]).default("manual").notNull(),
+  sourceType: mysqlEnum("sourceType", ["competitor_ad", "manual", "ai_generated", "batch"]).default("manual").notNull(),
   sourceId: int("sourceId"),
   tags: varchar("tags", { length: 512 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -142,11 +143,121 @@ export const documents = mysqlTable("documents", {
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content").notNull(),
   format: mysqlEnum("format", ["markdown", "pdf"]).default("markdown").notNull(),
-  sourceType: mysqlEnum("sourceType", ["transcript", "analysis"]).default("transcript").notNull(),
+  sourceType: mysqlEnum("sourceType", ["transcript", "analysis", "batch"]).default("transcript").notNull(),
   sourceId: int("sourceId"),
   fileUrl: text("fileUrl"),
+  googleDriveFileId: varchar("googleDriveFileId", { length: 255 }),
+  googleDriveUrl: text("googleDriveUrl"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = typeof documents.$inferInsert;
+
+// ─── NEW: Competitors (tracked brands/pages) ─────────────────────────────────
+
+export const competitors = mysqlTable("competitors", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  pageId: varchar("pageId", { length: 64 }),
+  pageName: varchar("pageName", { length: 255 }),
+  country: varchar("country", { length: 8 }).default("DE").notNull(),
+  language: varchar("language", { length: 16 }).default("de"),
+  isActive: boolean("isActive").default(true).notNull(),
+  lastScannedAt: timestamp("lastScannedAt"),
+  totalAdsFound: int("totalAdsFound").default(0).notNull(),
+  newAdsSinceLastScan: int("newAdsSinceLastScan").default(0).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Competitor = typeof competitors.$inferSelect;
+export type InsertCompetitor = typeof competitors.$inferInsert;
+
+// ─── NEW: Scan Logs ───────────────────────────────────────────────────────────
+
+export const scanLogs = mysqlTable("scan_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  competitorId: int("competitorId"),
+  competitorName: varchar("competitorName", { length: 255 }),
+  adsFound: int("adsFound").default(0).notNull(),
+  newAds: int("newAds").default(0).notNull(),
+  batchesCreated: int("batchesCreated").default(0).notNull(),
+  status: mysqlEnum("status", ["running", "completed", "failed"]).default("running").notNull(),
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type ScanLog = typeof scanLogs.$inferSelect;
+export type InsertScanLog = typeof scanLogs.$inferInsert;
+
+// ─── NEW: Ad Batches (Body + CTA + 3 Hooks) ──────────────────────────────────
+
+export const adBatches = mysqlTable("ad_batches", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  sourceAdId: int("sourceAdId"),
+  sourceAdText: text("sourceAdText"),
+  competitorName: varchar("competitorName", { length: 255 }),
+  // Core content
+  body: text("body").notNull(),
+  cta: text("cta").notNull(),
+  hook1: text("hook1").notNull(),
+  hook2: text("hook2").notNull(),
+  hook3: text("hook3").notNull(),
+  // HeyGen formatted scripts
+  heygenScript: text("heygenScript"),
+  // Metadata
+  status: mysqlEnum("status", ["draft", "ready", "exported", "used"]).default("draft").notNull(),
+  language: varchar("language", { length: 16 }).default("de"),
+  brandContext: text("brandContext"),
+  googleDriveFileId: varchar("googleDriveFileId", { length: 255 }),
+  googleDriveUrl: text("googleDriveUrl"),
+  transcriptId: int("transcriptId"),
+  generatedAt: timestamp("generatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdBatch = typeof adBatches.$inferSelect;
+export type InsertAdBatch = typeof adBatches.$inferInsert;
+
+// ─── NEW: Google Drive Connection ─────────────────────────────────────────────
+
+export const googleDriveConnections = mysqlTable("google_drive_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  accessToken: text("accessToken").notNull(),
+  refreshToken: text("refreshToken"),
+  tokenExpiry: timestamp("tokenExpiry"),
+  rootFolderId: varchar("rootFolderId", { length: 255 }),
+  rootFolderName: varchar("rootFolderName", { length: 255 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GoogleDriveConnection = typeof googleDriveConnections.$inferSelect;
+export type InsertGoogleDriveConnection = typeof googleDriveConnections.$inferInsert;
+
+// ─── NEW: Brand Settings (Easy Signals context) ───────────────────────────────
+
+export const brandSettings = mysqlTable("brand_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  brandName: varchar("brandName", { length: 255 }).default("Easy Signals").notNull(),
+  brandDescription: text("brandDescription"),
+  targetAudience: text("targetAudience"),
+  toneOfVoice: varchar("toneOfVoice", { length: 128 }),
+  uniqueSellingPoints: text("uniqueSellingPoints"),
+  callToActionDefault: varchar("callToActionDefault", { length: 255 }),
+  language: varchar("language", { length: 16 }).default("de").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandSettings = typeof brandSettings.$inferSelect;
+export type InsertBrandSettings = typeof brandSettings.$inferInsert;
