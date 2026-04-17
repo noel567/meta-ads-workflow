@@ -34,6 +34,7 @@ import {
   Users,
   Sparkles,
   Settings,
+  Video,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -49,6 +50,7 @@ const menuItems = [
   { icon: Library, label: "Ad Library", path: "/ad-library" },
   { icon: Users, label: "Konkurrenten", path: "/competitors" },
   { icon: Sparkles, label: "Batch Generator", path: "/batches" },
+  { icon: Video, label: "Video Research", path: "/video-research" },
   { icon: BookOpen, label: "Transkripte", path: "/transcripts" },
   { icon: MonitorPlay, label: "Teleprompter", path: "/teleprompter" },
   { icon: FileText, label: "Dokumente", path: "/documents" },

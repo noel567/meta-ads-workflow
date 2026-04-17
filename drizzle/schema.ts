@@ -285,3 +285,55 @@ export const heygenVideos = mysqlTable("heygen_videos", {
 });
 export type HeygenVideo = typeof heygenVideos.$inferSelect;
 export type InsertHeygenVideo = typeof heygenVideos.$inferInsert;
+
+// ─── Video Research Pipeline ──────────────────────────────────────────────────
+export const videoResearch = mysqlTable("video_research", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // Source info
+  sourceUrl: text("sourceUrl").notNull(),
+  platform: mysqlEnum("platform", ["facebook", "instagram", "youtube", "tiktok", "other"]).default("facebook").notNull(),
+  competitorName: varchar("competitorName", { length: 255 }),
+  competitorId: int("competitorId"),
+  // File storage
+  s3Key: text("s3Key"),
+  s3Url: text("s3Url"),
+  // Pipeline status
+  status: mysqlEnum("status", ["pending", "downloading", "downloaded", "transcribing", "transcribed", "analyzing", "analyzed", "adapting", "completed", "failed"]).default("pending").notNull(),
+  errorMessage: text("errorMessage"),
+  // Transcript
+  transcript: text("transcript"),
+  transcriptHook: text("transcriptHook"),
+  transcriptBody: text("transcriptBody"),
+  transcriptCta: text("transcriptCta"),
+  // Analysis
+  analysisAngle: varchar("analysisAngle", { length: 255 }),
+  analysisTargetAudience: text("analysisTargetAudience"),
+  analysisMechanic: text("analysisMechanic"),
+  analysisOfferStructure: text("analysisOfferStructure"),
+  analysisWhyItWorks: text("analysisWhyItWorks"),
+  analysisVisualPattern: text("analysisVisualPattern"),
+  // EasySignals Adaptation
+  adaptHook1: text("adaptHook1"),
+  adaptHook2: text("adaptHook2"),
+  adaptHook3: text("adaptHook3"),
+  adaptBody: text("adaptBody"),
+  adaptCta: text("adaptCta"),
+  adaptHeygenScript: text("adaptHeygenScript"),
+  adaptTelegramPost: text("adaptTelegramPost"),
+  adaptNanaBananaPrompt: text("adaptNanaBananaPrompt"),
+  // Naming & Drive
+  fileName: varchar("fileName", { length: 512 }),
+  driveFolderPath: varchar("driveFolderPath", { length: 512 }),
+  driveFileId: varchar("driveFileId", { length: 255 }),
+  driveUrl: text("driveUrl"),
+  // Metadata
+  adLibraryId: varchar("adLibraryId", { length: 128 }),
+  language: varchar("language", { length: 16 }).default("de"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VideoResearch = typeof videoResearch.$inferSelect;
+export type InsertVideoResearch = typeof videoResearch.$inferInsert;

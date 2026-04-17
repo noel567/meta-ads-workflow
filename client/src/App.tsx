@@ -14,6 +14,7 @@ import Documents from "./pages/Documents";
 import Competitors from "./pages/Competitors";
 import Batches from "./pages/Batches";
 import Settings from "./pages/Settings";
+import VideoResearch from "./pages/VideoResearch";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/teleprompter/:id?" component={Teleprompter} />
       <Route path="/documents" component={Documents} />
       <Route path="/settings" component={Settings} />
+      <Route path="/video-research" component={VideoResearch} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

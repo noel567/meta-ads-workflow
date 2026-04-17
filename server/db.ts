@@ -465,3 +465,38 @@ export async function getHeygenVideoByHeygenId(heygenVideoId: string): Promise<H
   const result = await db.select().from(heygenVideos).where(eq(heygenVideos.heygenVideoId, heygenVideoId)).limit(1);
   return result[0];
 }
+
+// ─── Video Research Pipeline ──────────────────────────────────────────────────
+import { VideoResearch, InsertVideoResearch, videoResearch } from "../drizzle/schema";
+
+export async function createVideoResearch(data: InsertVideoResearch): Promise<number | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.insert(videoResearch).values(data);
+  return (result as any)[0]?.insertId as number | undefined;
+}
+
+export async function getVideoResearchList(userId: number): Promise<VideoResearch[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(videoResearch).where(eq(videoResearch.userId, userId)).orderBy(desc(videoResearch.createdAt)).limit(100);
+}
+
+export async function getVideoResearchById(id: number, userId: number): Promise<VideoResearch | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(videoResearch).where(and(eq(videoResearch.id, id), eq(videoResearch.userId, userId))).limit(1);
+  return result[0];
+}
+
+export async function updateVideoResearch(id: number, data: Partial<InsertVideoResearch>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(videoResearch).set(data).where(eq(videoResearch.id, id));
+}
+
+export async function deleteVideoResearch(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(videoResearch).where(and(eq(videoResearch.id, id), eq(videoResearch.userId, userId)));
+}

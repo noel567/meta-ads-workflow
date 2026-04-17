@@ -178,3 +178,18 @@
 - [x] GOOGLE_REDIRECT_URI Secret gesetzt (feste Callback-URL für OAuth)
 - [x] getRedirectUri() nutzt ENV.googleRedirectUri als primäre Quelle
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Video Research Pipeline (April 2026)
+- [ ] Datenbank: video_research Tabelle (url, platform, competitor, status, transcript, analysis, adaptations, driveLink)
+- [ ] Server: video.submit – URL einreichen, yt-dlp Download starten, S3 speichern
+- [ ] Server: video.transcribe – Whisper-Transkription aus Video-URL
+- [ ] Server: video.analyze – KI-Analyse (Hook, Body, CTA, Mechanik, Zielgruppe, Offer-Struktur)
+- [ ] Server: video.adapt – EasySignals-Adaption (3 Hooks, Body, CTA, HeyGen-Skript, Telegram-Post, Nano-Banana-Prompt)
+- [ ] Server: video.exportToDrive – Video + Analyse strukturiert in Google Drive ablegen
+- [ ] Frontend: Video Research Seite (/video-research) mit URL-Eingabe und Pipeline-Status
+- [ ] Frontend: Pipeline-Status-Anzeige (Download → Transkript → Analyse → Adaption)
+- [ ] Frontend: Transkript-Viewer mit Hook/Body/CTA-Markierungen
+- [ ] Frontend: Analyse-Card (Zielgruppe, Mechanik, Offer-Struktur, Warum-es-funktioniert)
+- [ ] Frontend: Adaption-Panel (alle 7 Outputs: Hooks, Body, CTA, HeyGen, Telegram, Nano-Banana)
+- [ ] Frontend: Video-Library mit Filterung nach Konkurrent/Plattform/Status/Datum
+- [ ] Frontend: Sidebar-Navigation: "Video Research" Eintrag hinzufügen

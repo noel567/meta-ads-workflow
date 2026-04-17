@@ -17,6 +17,7 @@ import {
   getGoogleDriveConnection, upsertGoogleDriveConnection, deleteGoogleDriveConnection,
   getScanLogs, createScanLog, updateScanLog,
   createHeygenVideo, getHeygenVideos, getHeygenVideosByBatch, updateHeygenVideo, getHeygenVideoByHeygenId,
+  createVideoResearch, getVideoResearchList, getVideoResearchById, updateVideoResearch, deleteVideoResearch,
 } from "./db";
 import { runDailyScan, startScheduler } from "./scheduler";
 import { ENV } from "./_core/env";
@@ -885,6 +886,363 @@ Antworte NUR im folgenden JSON-Format:
     }),
 });
 
+// ─── Video Research Router ──────────────────────────────────────────────────
+const videoResearchRouter = router({
+  list: protectedProcedure.query(async ({ ctx }) => {
+    return getVideoResearchList(ctx.user.id);
+  }),
+
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      return getVideoResearchById(input.id, ctx.user.id);
+    }),
+
+  submit: protectedProcedure
+    .input(z.object({
+      sourceUrl: z.string().url(),
+      platform: z.enum(["facebook", "instagram", "youtube", "tiktok", "other"]).default("facebook"),
+      competitorName: z.string().optional(),
+      competitorId: z.number().optional(),
+      language: z.string().default("de"),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const id = await createVideoResearch({
+        userId: ctx.user.id,
+        sourceUrl: input.sourceUrl,
+        platform: input.platform,
+        competitorName: input.competitorName ?? null,
+        competitorId: input.competitorId ?? null,
+        language: input.language,
+        notes: input.notes ?? null,
+        status: "pending",
+      });
+      return { id, status: "pending" };
+    }),
+
+  process: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const item = await getVideoResearchById(input.id, ctx.user.id);
+      if (!item) throw new Error("Video Research nicht gefunden.");
+
+      // Step 1: Download video via yt-dlp
+      await updateVideoResearch(input.id, { status: "downloading" });
+      const { execSync } = await import("child_process");
+      const { mkdirSync, existsSync, readFileSync, rmSync } = await import("fs");
+      const os = await import("os");
+      const path = await import("path");
+      const { storagePut } = await import("./storage");
+
+      const tmpDir = path.join(os.tmpdir(), `vr_${input.id}_${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      let videoPath: string | null = null;
+      let s3Url: string | null = null;
+      let s3Key: string | null = null;
+
+      try {
+        // Try yt-dlp download
+        const outputTemplate = path.join(tmpDir, "video.%(ext)s");
+        try {
+          execSync(
+            `yt-dlp --no-playlist --max-filesize 50m -o "${outputTemplate}" "${item.sourceUrl}"`,
+            { timeout: 120000, stdio: "pipe" }
+          );
+          // Find downloaded file
+          const files = require("fs").readdirSync(tmpDir);
+          const videoFile = files.find((f: string) => f.startsWith("video."));
+          if (videoFile) {
+            videoPath = path.join(tmpDir, videoFile);
+            // Upload to S3
+            const fileBuffer = readFileSync(videoPath);
+            const ext = path.extname(videoFile);
+            const dateStr = new Date().toISOString().split("T")[0];
+            const safeComp = (item.competitorName ?? "unknown").replace(/[^a-zA-Z0-9_-]/g, "_");
+            s3Key = `video-research/${dateStr}/${safeComp}_${input.id}${ext}`;
+            const mimeMap: Record<string, string> = { ".mp4": "video/mp4", ".webm": "video/webm", ".mkv": "video/x-matroska" };
+            const mime = mimeMap[ext] || "video/mp4";
+            const uploaded = await storagePut(s3Key, fileBuffer, mime);
+            s3Url = uploaded.url;
+          }
+        } catch (dlErr: any) {
+          // Download failed – continue with URL-based transcription
+          console.warn("[VideoResearch] yt-dlp failed:", dlErr.message?.slice(0, 200));
+        }
+
+        await updateVideoResearch(input.id, { status: "transcribing", s3Key, s3Url });
+
+        // Step 2: Transcribe via Whisper
+        const { transcribeAudio } = await import("./_core/voiceTranscription");
+        let transcript = "";
+        let transcriptHook = "";
+        let transcriptBody = "";
+        let transcriptCta = "";
+
+        const audioSource = s3Url || item.sourceUrl;
+        try {
+          const result = await transcribeAudio({ audioUrl: audioSource, language: item.language ?? "de" });
+          transcript = (result as any).text || "";
+        } catch (transcribeErr: any) {
+          console.warn("[VideoResearch] Whisper failed:", transcribeErr.message?.slice(0, 200));
+          transcript = "[Transkription nicht verfügbar – Video-URL nicht direkt zugänglich]";
+        }
+
+        // Step 3: Parse Hook/Body/CTA from transcript via LLM
+        if (transcript && !transcript.startsWith("[")) {
+          const parseRes = await invokeLLM({
+            messages: [
+              { role: "system", content: "Du bist ein Expert für Performance-Marketing. Analysiere das folgende Video-Transkript und extrahiere strukturiert: Hook (erste 5-10 Sekunden), Body (Hauptinhalt) und CTA (Call-to-Action am Ende). Antworte als JSON." },
+              { role: "user", content: `Transkript:\n${transcript}` },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "transcript_parts",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    hook: { type: "string", description: "Die ersten 5-10 Sekunden / der Hook" },
+                    body: { type: "string", description: "Der Hauptinhalt der Ad" },
+                    cta: { type: "string", description: "Der Call-to-Action am Ende" },
+                  },
+                  required: ["hook", "body", "cta"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+          try {
+            const parsed = JSON.parse(parseRes.choices[0].message.content as string);
+            transcriptHook = parsed.hook || "";
+            transcriptBody = parsed.body || "";
+            transcriptCta = parsed.cta || "";
+          } catch { /* ignore parse errors */ }
+        }
+
+        await updateVideoResearch(input.id, {
+          status: "analyzing",
+          transcript,
+          transcriptHook,
+          transcriptBody,
+          transcriptCta,
+        });
+
+        // Step 4: Analyze the ad
+        const analysisRes = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `Du bist ein Expert für Performance Creative Strategy im Trading/Finance-Bereich (DACH-Markt). 
+Analysiere diese Konkurrenz-Ad für EasySignals (Trading-Signale, XAUUSD/Gold, Schweiz/DACH).
+Du arbeitest nach dem EasySignals Content Operating System: direkt, emotional, hochwertig, conversion-orientiert.
+Antworte als JSON.`,
+            },
+            {
+              role: "user",
+              content: `Konkurrent: ${item.competitorName || "Unbekannt"}\nPlattform: ${item.platform}\nURL: ${item.sourceUrl}\n\nTranskript:\n${transcript || "[nicht verfügbar]"}\n\nAnalysiere diese Ad vollständig.`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "ad_analysis",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  angle: { type: "string", description: "Der psychologische Angle (z.B. Anti-Scam, FOMO, Proof, Komfort)" },
+                  targetAudience: { type: "string", description: "Zielgruppe und deren Hauptproblem" },
+                  mechanic: { type: "string", description: "Psychologische Mechanik und Struktur der Ad" },
+                  offerStructure: { type: "string", description: "Wie das Angebot präsentiert wird" },
+                  whyItWorks: { type: "string", description: "Warum diese Ad wahrscheinlich funktioniert" },
+                  visualPattern: { type: "string", description: "Visuelle Struktur, Schnittlogik, On-Screen-Text (soweit erkennbar)" },
+                },
+                required: ["angle", "targetAudience", "mechanic", "offerStructure", "whyItWorks", "visualPattern"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        let analysis = { angle: "", targetAudience: "", mechanic: "", offerStructure: "", whyItWorks: "", visualPattern: "" };
+        try {
+          analysis = JSON.parse(analysisRes.choices[0].message.content as string);
+        } catch { /* ignore */ }
+
+        await updateVideoResearch(input.id, {
+          status: "adapting",
+          analysisAngle: analysis.angle,
+          analysisTargetAudience: analysis.targetAudience,
+          analysisMechanic: analysis.mechanic,
+          analysisOfferStructure: analysis.offerStructure,
+          analysisWhyItWorks: analysis.whyItWorks,
+          analysisVisualPattern: analysis.visualPattern,
+        });
+
+        // Step 5: Generate EasySignals adaptations
+        const adaptRes = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `Du bist das EasySignals Content Operating System.
+EasySignals ist eine Trading-Marke (XAUUSD/Gold, DACH/Schweiz) von Livio Glausen.
+Kernangebote: Signalgruppe, LAT-System (Auto-Copy-Trading), Prop-Firm Passing Service, Coaching.
+Zielgruppen: Anfänger mit Scam-Angst, Leute mit wenig Zeit, frustrierte Trader, Prop-Firm-Interessenten.
+Tonalität: direkt, emotional, hochwertig, conversion-orientiert, sprechbar, nicht wie Standard-KI.
+Naming Convention: ES_[Bereich]_[Angle]_[Thema]_[Sprache]_[Format]_V1
+Drive-Struktur: 03_Competitor_Research/04_EasySignals_Adaptations/
+Liefere vollständige EasySignals-Adaptionen als JSON.`,
+            },
+            {
+              role: "user",
+              content: `Konkurrent: ${item.competitorName || "Unbekannt"}\nAngle: ${analysis.angle}\nTranskript: ${transcript || "[nicht verfügbar]"}\n\nErstelle vollständige EasySignals-Adaptionen.`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "easysignals_adaptation",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  hook1: { type: "string", description: "Hook 1: Neugier/Curiosity" },
+                  hook2: { type: "string", description: "Hook 2: Pain/Problem" },
+                  hook3: { type: "string", description: "Hook 3: Ergebnis/Transformation" },
+                  body: { type: "string", description: "Body (3-5 Sätze, sprechbar, kameraoptimiert)" },
+                  cta: { type: "string", description: "Call-to-Action" },
+                  heygenScript: { type: "string", description: "Vollständiges HeyGen-Avatar-Skript (Hook 1 + Body + CTA mit [PAUSE]-Markierungen)" },
+                  telegramPost: { type: "string", description: "Telegram-Post-Version (authentisch, wie von Livio direkt)" },
+                  nanaBananaPrompt: { type: "string", description: "Nano-Banana-Bildprompt für passendes Visual" },
+                  fileName: { type: "string", description: "Dateiname nach Naming Convention ES_AD_..." },
+                  driveFolderPath: { type: "string", description: "Drive-Ordnerpfad z.B. 03_Competitor_Research/04_EasySignals_Adaptations/" },
+                },
+                required: ["hook1", "hook2", "hook3", "body", "cta", "heygenScript", "telegramPost", "nanaBananaPrompt", "fileName", "driveFolderPath"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        let adapt = { hook1: "", hook2: "", hook3: "", body: "", cta: "", heygenScript: "", telegramPost: "", nanaBananaPrompt: "", fileName: "", driveFolderPath: "" };
+        try {
+          adapt = JSON.parse(adaptRes.choices[0].message.content as string);
+        } catch { /* ignore */ }
+
+        await updateVideoResearch(input.id, {
+          status: "completed",
+          adaptHook1: adapt.hook1,
+          adaptHook2: adapt.hook2,
+          adaptHook3: adapt.hook3,
+          adaptBody: adapt.body,
+          adaptCta: adapt.cta,
+          adaptHeygenScript: adapt.heygenScript,
+          adaptTelegramPost: adapt.telegramPost,
+          adaptNanaBananaPrompt: adapt.nanaBananaPrompt,
+          fileName: adapt.fileName,
+          driveFolderPath: adapt.driveFolderPath,
+        });
+
+        // Cleanup temp files
+        try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+
+        return { success: true, id: input.id, status: "completed" };
+      } catch (err: any) {
+        await updateVideoResearch(input.id, { status: "failed", errorMessage: err.message?.slice(0, 500) });
+        try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+        throw new Error(`Pipeline fehlgeschlagen: ${err.message}`);
+      }
+    }),
+
+  exportToDrive: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const item = await getVideoResearchById(input.id, ctx.user.id);
+      if (!item) throw new Error("Video Research nicht gefunden.");
+      if (item.status !== "completed") throw new Error("Pipeline noch nicht abgeschlossen.");
+
+      const { execSync } = await import("child_process");
+      const { mkdirSync, writeFileSync, rmSync } = await import("fs");
+      const os = await import("os");
+      const path = await import("path");
+
+      const dateStr = new Date().toISOString().split("T")[0];
+      const safeComp = (item.competitorName ?? "Unknown").replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g, "_");
+      const fileName = item.fileName || `ES_COMP_${safeComp}_${dateStr}`;
+
+      const content = [
+        `# ${fileName}`,
+        `**Datum:** ${dateStr}  |  **Konkurrent:** ${item.competitorName}  |  **Plattform:** ${item.platform}`,
+        `**Quelle:** ${item.sourceUrl}`,
+        ``,
+        `---`,
+        `## Transkript`,
+        item.transcript || "[nicht verfügbar]",
+        ``,
+        `### Hook`, item.transcriptHook || "",
+        `### Body`, item.transcriptBody || "",
+        `### CTA`, item.transcriptCta || "",
+        ``,
+        `---`,
+        `## Analyse`,
+        `**Angle:** ${item.analysisAngle}`,
+        `**Zielgruppe:** ${item.analysisTargetAudience}`,
+        `**Mechanik:** ${item.analysisMechanic}`,
+        `**Offer-Struktur:** ${item.analysisOfferStructure}`,
+        `**Warum es funktioniert:** ${item.analysisWhyItWorks}`,
+        `**Visual-Pattern:** ${item.analysisVisualPattern}`,
+        ``,
+        `---`,
+        `## EasySignals Adaptionen`,
+        `### Hook 1 (Neugier)`, item.adaptHook1 || "",
+        `### Hook 2 (Pain)`, item.adaptHook2 || "",
+        `### Hook 3 (Transformation)`, item.adaptHook3 || "",
+        `### Body`, item.adaptBody || "",
+        `### CTA`, item.adaptCta || "",
+        ``,
+        `### HeyGen-Skript`, item.adaptHeygenScript || "",
+        ``,
+        `### Telegram-Post`, item.adaptTelegramPost || "",
+        ``,
+        `### Nano-Banana-Prompt`, item.adaptNanaBananaPrompt || "",
+        ``,
+        `---`,
+        `**Dateiname:** ${fileName}`,
+        `**Drive-Ordner:** ${item.driveFolderPath || "03_Competitor_Research/04_EasySignals_Adaptations/"}`,
+      ].join("\n");
+
+      const tmpDir = path.join(os.tmpdir(), `vr_export_${input.id}_${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      const filePath = path.join(tmpDir, `${fileName}.md`);
+      writeFileSync(filePath, content, "utf-8");
+
+      const rcloneConfig = "/home/ubuntu/.gdrive-rclone.ini";
+      const drivePath = item.driveFolderPath || `03_Competitor_Research/04_EasySignals_Adaptations/${safeComp}`;
+      const remotePath = `manus_google_drive:Easy Signals/${drivePath}`;
+
+      try {
+        execSync(`rclone mkdir "${remotePath}" --config "${rcloneConfig}"`, { timeout: 15000 });
+        execSync(`rclone copyto "${filePath}" "${remotePath}/${fileName}.md" --config "${rcloneConfig}"`, { timeout: 30000 });
+        await updateVideoResearch(input.id, {
+          driveUrl: `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`,
+        });
+      } finally {
+        try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+
+      return { success: true, driveUrl: `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}` };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      await deleteVideoResearch(input.id, ctx.user.id);
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -909,6 +1267,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   heygen: heygenRouter,
   hooks: hooksRouter,
+  videoResearch: videoResearchRouter,
 });
 
 export type AppRouter = typeof appRouter;
