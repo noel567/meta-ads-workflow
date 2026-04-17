@@ -387,7 +387,10 @@ const transcriptsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => getTranscripts(ctx.user.id)),
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }) => getTranscriptById(input.id, ctx.user.id)),
+    .query(async ({ ctx, input }) => {
+      const t = await getTranscriptById(input.id, ctx.user.id);
+      return t ?? null;
+    }),
   create: protectedProcedure
     .input(z.object({ title: z.string().min(1), content: z.string(), sourceId: z.number().optional(), sourceType: z.enum(["competitor_ad", "manual", "ai_generated", "batch"]).optional() }))
     .mutation(async ({ ctx, input }) => {
@@ -437,7 +440,10 @@ const competitorsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => getCompetitors(ctx.user.id)),
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }) => getCompetitorById(input.id, ctx.user.id)),
+    .query(async ({ ctx, input }) => {
+      const c = await getCompetitorById(input.id, ctx.user.id);
+      return c ?? null;
+    }),
   create: protectedProcedure
     .input(z.object({ name: z.string().min(1), pageId: z.string().optional(), pageName: z.string().optional(), country: z.string().optional(), language: z.string().optional(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
@@ -489,7 +495,10 @@ const batchesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => getAdBatches(ctx.user.id)),
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ ctx, input }) => getAdBatchById(input.id, ctx.user.id)),
+    .query(async ({ ctx, input }) => {
+      const b = await getAdBatchById(input.id, ctx.user.id);
+      return b ?? null;
+    }),
   generate: protectedProcedure
     .input(z.object({ competitorAdId: z.number(), adText: z.string(), competitorName: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -522,7 +531,10 @@ const batchesRouter = router({
 });
 
 const brandRouter = router({
-  get: protectedProcedure.query(async ({ ctx }) => getBrandSettings(ctx.user.id)),
+  get: protectedProcedure.query(async ({ ctx }) => {
+    const brand = await getBrandSettings(ctx.user.id);
+    return brand ?? null;
+  }),
   upsert: protectedProcedure
     .input(z.object({
       brandName: z.string().optional(), brandDescription: z.string().optional(),
