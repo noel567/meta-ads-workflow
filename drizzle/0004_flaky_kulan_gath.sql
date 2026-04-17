@@ -1,0 +1,1 @@
+ALTER TABLE `google_drive_connections` ADD `connectedEmail` varchar(320);

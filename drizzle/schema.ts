@@ -236,6 +236,7 @@ export const googleDriveConnections = mysqlTable("google_drive_connections", {
   tokenExpiry: timestamp("tokenExpiry"),
   rootFolderId: varchar("rootFolderId", { length: 255 }),
   rootFolderName: varchar("rootFolderName", { length: 255 }),
+  connectedEmail: varchar("connectedEmail", { length: 320 }),
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

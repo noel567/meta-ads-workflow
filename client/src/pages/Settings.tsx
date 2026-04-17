@@ -55,22 +55,25 @@ export default function Settings() {
 
   // Google Drive
   const { data: driveConnection, refetch: refetchDrive } = trpc.googleDrive.getConnection.useQuery(undefined, { enabled: isAuthenticated });
-  const [driveToken, setDriveToken] = useState("");
-  const [driveFolderName, setDriveFolderName] = useState("Easy Signals Ads");
-
-  const connectDriveMutation = trpc.googleDrive.connect.useMutation({
-    onSuccess: (data: any) => {
-      toast.success(`Google Drive verbunden! Root-Ordner erstellt.`);
-      setDriveToken("");
-      refetchDrive();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
+  const { data: authUrlData } = trpc.googleDrive.getAuthUrl.useQuery(
+    { origin: typeof window !== "undefined" ? window.location.origin : "" },
+    { enabled: isAuthenticated }
+  );
 
   const disconnectDriveMutation = trpc.googleDrive.disconnect.useMutation({
     onSuccess: () => { toast.success("Google Drive getrennt"); refetchDrive(); },
     onError: (e) => toast.error(e.message),
   });
+
+  // Check for google_connected=true in URL after OAuth redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google_connected") === "true") {
+      toast.success("Google Drive erfolgreich verbunden!");
+      refetchDrive();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -277,41 +280,26 @@ export default function Settings() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 flex gap-2">
-                  <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 flex gap-2">
+                  <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
                   <div className="text-xs text-muted-foreground space-y-1">
-                    <p className="font-medium text-foreground">Google Access Token benötigt</p>
-                    <p>Gehe zu <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google OAuth Playground</a>, autorisiere den Scope <code className="bg-muted px-1 rounded">https://www.googleapis.com/auth/drive.file</code> und kopiere den Access Token hierher.</p>
+                    <p className="font-medium text-foreground">Mit Google-Konto verbinden</p>
+                    <p>Klicke auf den Button unten, um dich mit deinem Google-Konto zu authentifizieren. Du wirst zu Google weitergeleitet und danach automatisch zurückgeleitet.</p>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Google Access Token</Label>
-                  <Input
-                    type="password"
-                    placeholder="ya29.a0AfH6SMB..."
-                    value={driveToken}
-                    onChange={e => setDriveToken(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Root-Ordner Name</Label>
-                  <Input
-                    value={driveFolderName}
-                    onChange={e => setDriveFolderName(e.target.value)}
-                    placeholder="Easy Signals Ads"
-                  />
                 </div>
                 <Button
                   className="w-full gap-2"
-                  onClick={() => connectDriveMutation.mutate({ accessToken: driveToken, rootFolderName: driveFolderName })}
-                  disabled={!driveToken || connectDriveMutation.isPending}
+                  onClick={() => {
+                    if (authUrlData?.url) {
+                      window.location.href = authUrlData.url;
+                    } else {
+                      toast.error("OAuth-URL konnte nicht geladen werden. Bitte Seite neu laden.");
+                    }
+                  }}
+                  disabled={!authUrlData?.url}
                 >
-                  {connectDriveMutation.isPending ? "Verbinde..." : (
-                    <>
-                      <HardDrive className="w-4 h-4" />
-                      Google Drive verbinden
-                    </>
-                  )}
+                  <HardDrive className="w-4 h-4" />
+                  Mit Google Drive verbinden
                 </Button>
               </div>
             )}

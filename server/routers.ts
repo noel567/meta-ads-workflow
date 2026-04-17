@@ -549,8 +549,26 @@ const googleDriveRouter = router({
   getConnection: protectedProcedure.query(async ({ ctx }) => {
     const conn = await getGoogleDriveConnection(ctx.user.id);
     if (!conn) return null;
-    return { id: conn.id, rootFolderName: conn.rootFolderName, isActive: conn.isActive, updatedAt: conn.updatedAt };
+    return { id: conn.id, rootFolderName: conn.rootFolderName, isActive: conn.isActive, updatedAt: conn.updatedAt, connectedEmail: (conn as any).connectedEmail ?? null };
   }),
+  getAuthUrl: protectedProcedure
+    .input(z.object({ origin: z.string() }))
+    .query(({ input }) => {
+      const redirectUri = `${input.origin}/api/google/callback`;
+      const params = new URLSearchParams({
+        client_id: ENV.googleClientId,
+        redirect_uri: redirectUri,
+        response_type: "code",
+        scope: [
+          "https://www.googleapis.com/auth/drive.file",
+          "https://www.googleapis.com/auth/userinfo.email",
+        ].join(" "),
+        access_type: "offline",
+        prompt: "consent",
+        state: Buffer.from(JSON.stringify({ ts: Date.now() })).toString("base64"),
+      });
+      return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` };
+    }),
   connect: protectedProcedure
     .input(z.object({ accessToken: z.string().min(1), refreshToken: z.string().optional(), rootFolderName: z.string().default("Easy Signals Ads") }))
     .mutation(async ({ ctx, input }) => {
