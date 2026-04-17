@@ -13,11 +13,16 @@ import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import {
   Settings as SettingsIcon, Building2, HardDrive, CheckCircle2,
-  Unlink, ExternalLink, Info, Sparkles
+  Unlink, ExternalLink, Info, Sparkles, Video, Loader2, AlertCircle
 } from "lucide-react";
 
 export default function Settings() {
   const { user, loading, isAuthenticated } = useAuth();
+  const [heygenTestTriggered, setHeygenTestTriggered] = useState(false);
+  const { data: heygenStatus, isLoading: heygenLoading, error: heygenError } = trpc.heygen.testConnection.useQuery(
+    undefined,
+    { enabled: heygenTestTriggered && isAuthenticated, retry: false }
+  );
 
   // Brand Settings
   const { data: brandData, refetch: refetchBrand } = trpc.brand.get.useQuery(undefined, { enabled: isAuthenticated });
@@ -310,6 +315,87 @@ export default function Settings() {
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+        {/* HeyGen Integration */}
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <Video className="w-4 h-4 text-purple-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">HeyGen Integration</CardTitle>
+                  <CardDescription className="text-xs">
+                    AI-Avatar-Videos direkt aus Batch-Skripten erstellen
+                  </CardDescription>
+                </div>
+              </div>
+              {heygenStatus && (
+                <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20">
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Verbunden
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
+              <p className="text-xs font-medium text-purple-300 mb-2">API-Key einrichten</p>
+              <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                <li>Gehe zu <a href="https://app.heygen.com/settings?nav=API" target="_blank" rel="noopener noreferrer" className="text-purple-400 underline">HeyGen API-Einstellungen</a></li>
+                <li>Kopiere deinen API-Key</li>
+                <li>Füge ihn als <code className="bg-muted px-1 rounded">HEYGEN_API_KEY</code> in den Projekt-Secrets ein</li>
+              </ol>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => setHeygenTestTriggered(true)}
+              disabled={heygenLoading}
+            >
+              {heygenLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Verbindung wird getestet...</>
+              ) : (
+                <><Video className="w-4 h-4" /> HeyGen Verbindung testen</>
+              )}
+            </Button>
+
+            {heygenStatus && (
+              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-medium text-foreground">HeyGen verbunden</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Verbleibendes Guthaben: <strong className="text-foreground">{heygenStatus.remainingQuota} Credits</strong>
+                </p>
+              </div>
+            )}
+
+            {heygenError && (
+              <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  <span className="text-sm font-medium text-foreground">Verbindung fehlgeschlagen</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Bitte prüfe ob der <code className="bg-muted px-1 rounded">HEYGEN_API_KEY</code> korrekt hinterlegt ist.
+                </p>
+              </div>
+            )}
+
+            <div className="p-3 rounded-lg bg-muted/30 border border-border">
+              <p className="text-xs text-muted-foreground font-medium mb-1">Was du damit machen kannst:</p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• Batch-Skripte direkt an HeyGen senden (Batch Generator → HeyGen Button)</li>
+                <li>• Avatar und Stimme auswählen (9:16 für Reels, 16:9 für YouTube)</li>
+                <li>• Video-Status in Echtzeit verfolgen (alle 5 Sekunden aktualisiert)</li>
+                <li>• Fertige Videos direkt öffnen und herunterladen</li>
+              </ul>
+            </div>
           </CardContent>
         </Card>
       </div>
