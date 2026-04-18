@@ -362,6 +362,9 @@ export default function VideoResearch() {
   const [competitorName, setCompetitorName] = useState("");
   const [notes, setNotes] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterPlatform, setFilterPlatform] = useState<string>("all");
+  const [filterCompetitor, setFilterCompetitor] = useState<string>("all");
+  const [filterDate, setFilterDate] = useState<string>("all");
 
   const { data: items = [], refetch, isLoading } = trpc.videoResearch.list.useQuery();
   const { data: competitors = [] } = trpc.competitors.list.useQuery();
@@ -388,7 +391,29 @@ export default function VideoResearch() {
     });
   };
 
-  const filtered = filterStatus === "all" ? items : items.filter((i: any) => i.status === filterStatus);
+  const filtered = items.filter((i: any) => {
+    if (filterStatus !== "all" && i.status !== filterStatus) return false;
+    if (filterPlatform !== "all" && i.platform !== filterPlatform) return false;
+    if (filterCompetitor !== "all" && (i.competitorName || "") !== filterCompetitor) return false;
+    if (filterDate !== "all") {
+      const created = new Date(i.createdAt);
+      const now = new Date();
+      if (filterDate === "today") {
+        if (created.toDateString() !== now.toDateString()) return false;
+      } else if (filterDate === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        if (created < weekAgo) return false;
+      } else if (filterDate === "month") {
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        if (created < monthAgo) return false;
+      }
+    }
+    return true;
+  });
+
+  // Unique competitors and platforms from data
+  const uniqueCompetitors = Array.from(new Set(items.map((i: any) => i.competitorName).filter(Boolean))) as string[];
+  const usedPlatforms = Array.from(new Set(items.map((i: any) => i.platform).filter(Boolean))) as string[];
   const stats = {
     total: items.length,
     completed: items.filter((i: any) => i.status === "completed").length,
@@ -492,21 +517,90 @@ export default function VideoResearch() {
 
       {/* Filter */}
       {items.length > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Filter:</span>
-          {["all", "pending", "completed", "failed"].map(s => (
+        <div className="flex flex-wrap items-center gap-3 bg-slate-900/40 border border-slate-800 rounded-lg p-3">
+          <span className="text-xs font-medium text-slate-400">Filter:</span>
+
+          {/* Status */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500">Status:</span>
+            <div className="flex gap-1">
+              {["all", "pending", "completed", "failed"].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setFilterStatus(s)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    filterStatus === s
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-800 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {s === "all" ? "Alle" : STATUS_CONFIG[s]?.label || s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Platform */}
+          {usedPlatforms.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">Plattform:</span>
+              <Select value={filterPlatform} onValueChange={setFilterPlatform}>
+                <SelectTrigger className="h-7 w-32 bg-slate-800 border-slate-700 text-xs text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  <SelectItem value="all" className="text-slate-200 text-xs">Alle</SelectItem>
+                  {usedPlatforms.map(p => (
+                    <SelectItem key={p} value={p} className="text-slate-200 text-xs">{PLATFORM_LABELS[p] || p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Competitor */}
+          {uniqueCompetitors.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">Konkurrent:</span>
+              <Select value={filterCompetitor} onValueChange={setFilterCompetitor}>
+                <SelectTrigger className="h-7 w-40 bg-slate-800 border-slate-700 text-xs text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  <SelectItem value="all" className="text-slate-200 text-xs">Alle</SelectItem>
+                  {uniqueCompetitors.map(c => (
+                    <SelectItem key={c} value={c} className="text-slate-200 text-xs">{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Date */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-500">Zeitraum:</span>
+            <Select value={filterDate} onValueChange={setFilterDate}>
+              <SelectTrigger className="h-7 w-28 bg-slate-800 border-slate-700 text-xs text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-900 border-slate-700">
+                <SelectItem value="all" className="text-slate-200 text-xs">Alle</SelectItem>
+                <SelectItem value="today" className="text-slate-200 text-xs">Heute</SelectItem>
+                <SelectItem value="week" className="text-slate-200 text-xs">Diese Woche</SelectItem>
+                <SelectItem value="month" className="text-slate-200 text-xs">Dieser Monat</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Reset */}
+          {(filterStatus !== "all" || filterPlatform !== "all" || filterCompetitor !== "all" || filterDate !== "all") && (
             <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                filterStatus === s
-                  ? "bg-blue-600 text-white"
-                  : "bg-slate-800 text-slate-400 hover:text-white"
-              }`}
+              onClick={() => { setFilterStatus("all"); setFilterPlatform("all"); setFilterCompetitor("all"); setFilterDate("all"); }}
+              className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors ml-auto"
             >
-              {s === "all" ? "Alle" : STATUS_CONFIG[s]?.label || s}
+              Filter zurücksetzen
             </button>
-          ))}
+          )}
         </div>
       )}
 

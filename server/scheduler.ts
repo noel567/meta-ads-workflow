@@ -11,10 +11,36 @@ import { notifyOwner } from "./_core/notification";
 // ─── Daily Telegram Post ─────────────────────────────────────────────────────
 
 const TELEGRAM_SYSTEM_PROMPT = `Du bist der Content-Operator von EasySignals, einer exklusiven Trading-Marke aus der Schweiz (DACH-Fokus).
-EasySignals steht für: Community, Status, Führung, Resultate, Struktur, System, Komfort, Exklusivität.
-Sprache für Telegram: Berndeutsch / Schweizerdeutsch – echtes, natürliches, lokales Berndeutsch.
-Tonalität: direkt, emotional, klar, stark, modern, hochwertig, präzise, community-nah.
-Vermeide: generische Standard-Copy, langweilige Motivationssprüche, KI-Haftigkeit.`;
+
+EasySignals Content Operating System (COS) – Kern-Regeln:
+- EasySignals steht für: Community, Status, Führung, Resultate, Struktur, System, Komfort, Exklusivität
+- Zielgruppe: DACH-Trader (25-45), die Klarheit, System und Resultate suchen
+- Persona: Livio, Gründer EasySignals – direkt, authentisch, kein Agentur-Blabla
+- Telegram ist: Community-Bindung, Führung, Vertrauensaufbau, Markt-Kommunikation, Hype, Proof, Kultur, Conversion
+- Posts sollen klingen als kämen sie direkt von Livio – nicht von einer anonymen Brand
+
+Sprache:
+- Berndeutsch / Schweizerdeutsch – echtes, natürliches, lokales Berndeutsch (NICHT Hochdeutsch mit Schweizer Wörtern, NICHT Zürideutsch)
+- Tonalität: direkt, emotional, klar, stark, modern, hochwertig, präzise, community-nah
+
+Vermeide:
+- generische Standard-Copy, langweilige Motivationssprüche, KI-Haftigkeit
+- unnatürliches Schweizerdeutsch, zu viele Gedankenstriche, leblose Sprache
+- trockenen Finanzsprech, zu viel Theorie
+
+Post-Kategorien:
+1. Trust-Posts: Verlusttage einordnen, realistische Erwartungen, Marktphasen erklären, Geduld, Disziplin
+2. Proof-Posts: Resultate, Screenshots, Auszahlungen, Community-Erfolge, Feedback
+3. Conversion-Posts: Challenge-Plätze, Warteliste, LAT-System, Reminder, Sonderzugang
+4. Community-Posts: Umfragen, Fragen, Behind-the-scenes, persönliche Worte, Gruppenaktivierung
+5. Hype-Posts: etwas kommt, limitierte Plätze, Countdowns, Ankündigungen, nur für wenige
+6. Education-Posts: CRV, Trefferquote, Seitwärtsphase, Gold-Markt, Mindset, Anfängerfehler
+
+Struktur pro Post:
+- Ziel klar definieren
+- Haupttext: 3-6 Zeilen, direkt, stark, kein Fülltext
+- 1-2 passende Emojis
+- optional: kurzer CTA`;
 
 const TELEGRAM_CONTENT_TYPES = [
   { type: "tip" as const, label: "Trading-Tipp", prompt: "Schreib einen praktischen Trading-Tipp auf Berndeutsch. Konkret, umsetzbar, kein Blabla. Mit 1-2 passenden Emojis." },
@@ -538,13 +564,13 @@ export function startScheduler(userId: number) {
     clearInterval(schedulerInterval);
   }
 
-  // Check every hour if it's time to run the daily scan (07:00 UTC)
+  // Check every 5 minutes if it's time to run the daily scan or Telegram post
   schedulerInterval = setInterval(async () => {
     const now = new Date();
     const hour = now.getUTCHours();
     const minute = now.getUTCMinutes();
 
-    // Run at 07:00 UTC (09:00 CEST)
+    // Run competitor scan at 07:00 UTC (09:00 CEST)
     if (hour === 7 && minute < 5) {
       console.log(`[Scheduler] Starting daily scan for user ${userId}...`);
       try {
@@ -555,14 +581,33 @@ export function startScheduler(userId: number) {
       }
     }
 
-    // Telegram daily post: run at 07:00 UTC (09:00 CEST) – after the scan
-    if (hour === 7 && minute >= 5 && minute < 10) {
-      console.log(`[Scheduler] Running daily Telegram post for user ${userId}...`);
-      try {
-        await runDailyTelegramPost(userId);
-        console.log(`[Scheduler] Daily Telegram post completed.`);
-      } catch (e) {
-        console.error(`[Scheduler] Daily Telegram post failed:`, e);
+    // Telegram daily post: use configured posting time from DB settings
+    try {
+      const settings = await getTelegramSettings(userId);
+      // Default: 09:05 CEST = 07:05 UTC
+      const postHourUTC = settings?.postingTimeHour !== undefined
+        ? ((settings.postingTimeHour - 2 + 24) % 24)  // Convert CEST (UTC+2) to UTC
+        : 7;
+      const postMinute = settings?.postingTimeMinute ?? 5;
+
+      if (hour === postHourUTC && minute >= postMinute && minute < postMinute + 5) {
+        console.log(`[Scheduler] Running daily Telegram post for user ${userId} (configured time: ${settings?.postingTimeHour ?? 9}:${String(settings?.postingTimeMinute ?? 5).padStart(2, '0')} CEST)...`);
+        try {
+          await runDailyTelegramPost(userId);
+          console.log(`[Scheduler] Daily Telegram post completed.`);
+        } catch (e) {
+          console.error(`[Scheduler] Daily Telegram post failed:`, e);
+        }
+      }
+    } catch (settingsErr) {
+      // Fallback: run at 07:05 UTC if settings unavailable
+      if (hour === 7 && minute >= 5 && minute < 10) {
+        console.log(`[Scheduler] Running daily Telegram post (fallback time) for user ${userId}...`);
+        try {
+          await runDailyTelegramPost(userId);
+        } catch (e) {
+          console.error(`[Scheduler] Daily Telegram post failed:`, e);
+        }
       }
     }
   }, 5 * 60 * 1000); // Check every 5 minutes

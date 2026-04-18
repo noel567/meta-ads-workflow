@@ -180,31 +180,38 @@
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
 
 ## Video Research Pipeline (April 2026)
-- [ ] Datenbank: video_research Tabelle (url, platform, competitor, status, transcript, analysis, adaptations, driveLink)
-- [ ] Server: video.submit – URL einreichen, yt-dlp Download starten, S3 speichern
-- [ ] Server: video.transcribe – Whisper-Transkription aus Video-URL
-- [ ] Server: video.analyze – KI-Analyse (Hook, Body, CTA, Mechanik, Zielgruppe, Offer-Struktur)
-- [ ] Server: video.adapt – EasySignals-Adaption (3 Hooks, Body, CTA, HeyGen-Skript, Telegram-Post, Nano-Banana-Prompt)
-- [ ] Server: video.exportToDrive – Video + Analyse strukturiert in Google Drive ablegen
-- [ ] Frontend: Video Research Seite (/video-research) mit URL-Eingabe und Pipeline-Status
-- [ ] Frontend: Pipeline-Status-Anzeige (Download → Transkript → Analyse → Adaption)
-- [ ] Frontend: Transkript-Viewer mit Hook/Body/CTA-Markierungen
-- [ ] Frontend: Analyse-Card (Zielgruppe, Mechanik, Offer-Struktur, Warum-es-funktioniert)
-- [ ] Frontend: Adaption-Panel (alle 7 Outputs: Hooks, Body, CTA, HeyGen, Telegram, Nano-Banana)
-- [ ] Frontend: Video-Library mit Filterung nach Konkurrent/Plattform/Status/Datum
-- [ ] Frontend: Sidebar-Navigation: "Video Research" Eintrag hinzufügen
+- [x] Datenbank: video_research Tabelle (url, platform, competitor, status, transcript, analysis, adaptations, driveLink)
+- [x] Server: video.submit – URL einreichen, yt-dlp Download starten, S3 speichern
+- [x] Server: video.transcribe – Whisper-Transkription aus Video-URL
+- [x] Server: video.analyze – KI-Analyse (Hook, Body, CTA, Mechanik, Zielgruppe, Offer-Struktur)
+- [x] Server: video.adapt – EasySignals-Adaption (3 Hooks, Body, CTA, HeyGen-Skript, Telegram-Post, Nano-Banana-Prompt)
+- [x] Server: video.exportToDrive – Video + Analyse strukturiert in Google Drive ablegen
+- [x] Frontend: Video Research Seite (/video-research) mit URL-Eingabe und Pipeline-Status
+- [x] Frontend: Pipeline-Status-Anzeige (Download → Transkript → Analyse → Adaption)
+- [x] Frontend: Transkript-Viewer mit Hook/Body/CTA-Markierungen
+- [x] Frontend: Analyse-Card (Zielgruppe, Mechanik, Offer-Struktur, Warum-es-funktioniert)
+- [x] Frontend: Adaption-Panel (alle 7 Outputs: Hooks, Body, CTA, HeyGen, Telegram, Nano-Banana)
+- [x] Frontend: Video-Library mit Filterung nach Konkurrent/Plattform/Status/Datum
+- [x] Frontend: Sidebar-Navigation: "Video Research" Eintrag hinzufügen
 
 ## Telegram Content Bot (April 2026)
-- [ ] telegram_posts Tabelle in Drizzle-Schema (text, image_url, status, sent_at, scheduled_at)
-- [ ] telegram_settings Tabelle (bot_token, chat_id, posting_time, active)
-- [ ] Server: telegram.generatePost Procedure (KI-Text nach EasySignals COS)
-- [ ] Server: Bild-Generierung für Telegram-Post (generateImage)
-- [ ] Server: telegram.sendPost Procedure (Bild + Text via Telegram Bot API)
-- [ ] Server: telegram.schedulePost Procedure (täglicher Cron-Job)
-- [ ] Server: telegram.getPosts Procedure (Post-Historie)
-- [ ] Frontend: Telegram-Content Seite (/telegram)
-- [ ] Frontend: Post-Vorschau mit Bild + Text
-- [ ] Frontend: Manueller Post-Button
-- [ ] Frontend: Posting-Zeit konfigurieren
-- [ ] Frontend: Post-Historie anzeigen
-- [ ] Sidebar-Navigation: Telegram-Eintrag
+- [x] telegram_posts Tabelle in Drizzle-Schema (text, image_url, status, sent_at, scheduled_at)
+- [x] telegram_settings Tabelle (bot_token, chat_id, posting_time, active)
+- [x] Server: telegram.generatePost Procedure (KI-Text nach EasySignals COS)
+- [x] Server: Bild-Generierung für Telegram-Post (generateImage)
+- [x] Server: telegram.sendPost Procedure (Bild + Text via Telegram Bot API)
+- [x] Server: telegram.schedulePost Procedure (täglicher Cron-Job)
+- [x] Server: telegram.getPosts Procedure (Post-Historie)
+- [x] Frontend: Telegram-Content Seite (/telegram)
+- [x] Frontend: Post-Vorschau mit Bild + Text
+- [x] Frontend: Manueller Post-Button
+- [x] Frontend: Posting-Zeit konfigurieren
+- [x] Frontend: Post-Historie anzeigen
+- [x] Sidebar-Navigation: Telegram-Eintrag
+
+## Verbesserungen (April 2026)
+- [x] Telegram-Scheduler nutzt konfigurierte Posting-Zeit aus DB (postingTimeHour/postingTimeMinute) statt hardcoded
+- [x] EasySignals COS vollständig in Telegram-Generierung eingebaut (alle 6 Post-Kategorien, Berndeutsch-Regeln, Persona Livio)
+- [x] Video Research Library: Filter nach Plattform, Konkurrent und Zeitraum (Heute/Woche/Monat) hinzugefügt
+- [x] Telegram Chat ID auf @Manuseasy (-1003503941067) aktualisiert und getestet
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
