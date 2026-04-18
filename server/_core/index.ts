@@ -60,6 +60,24 @@ async function startServer() {
     }
   });
 
+  // Simple text-only ping endpoint for debugging
+  app.post("/api/telegram/ping", async (req, res) => {
+    try {
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const chatId = (req.body as any)?.chatId || process.env.TELEGRAM_CHAT_ID;
+      if (!botToken) { res.status(500).json({ error: "No bot token" }); return; }
+      const r = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: "🟢 EasySignals Bot Test – Verbindung erfolgreich!" }),
+      });
+      const data = await r.json() as any;
+      res.json({ ok: data.ok, description: data.description, chat_id: chatId, result: data.result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Public Telegram test endpoint (no auth required, for owner testing)
   app.post("/api/telegram/test", async (req, res) => {
     try {
