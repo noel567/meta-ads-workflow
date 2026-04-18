@@ -193,3 +193,18 @@
 - [ ] Frontend: Adaption-Panel (alle 7 Outputs: Hooks, Body, CTA, HeyGen, Telegram, Nano-Banana)
 - [ ] Frontend: Video-Library mit Filterung nach Konkurrent/Plattform/Status/Datum
 - [ ] Frontend: Sidebar-Navigation: "Video Research" Eintrag hinzufügen
+
+## Telegram Content Bot (April 2026)
+- [ ] telegram_posts Tabelle in Drizzle-Schema (text, image_url, status, sent_at, scheduled_at)
+- [ ] telegram_settings Tabelle (bot_token, chat_id, posting_time, active)
+- [ ] Server: telegram.generatePost Procedure (KI-Text nach EasySignals COS)
+- [ ] Server: Bild-Generierung für Telegram-Post (generateImage)
+- [ ] Server: telegram.sendPost Procedure (Bild + Text via Telegram Bot API)
+- [ ] Server: telegram.schedulePost Procedure (täglicher Cron-Job)
+- [ ] Server: telegram.getPosts Procedure (Post-Historie)
+- [ ] Frontend: Telegram-Content Seite (/telegram)
+- [ ] Frontend: Post-Vorschau mit Bild + Text
+- [ ] Frontend: Manueller Post-Button
+- [ ] Frontend: Posting-Zeit konfigurieren
+- [ ] Frontend: Post-Historie anzeigen
+- [ ] Sidebar-Navigation: Telegram-Eintrag

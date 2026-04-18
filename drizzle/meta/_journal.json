@@ -43,6 +43,13 @@
       "when": 1776469224717,
       "tag": "0005_conscious_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1776473295747,
+      "tag": "0006_wealthy_groot",
+      "breakpoints": true
     }
   ]
 }

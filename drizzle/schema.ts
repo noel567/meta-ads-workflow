@@ -337,3 +337,45 @@ export const videoResearch = mysqlTable("video_research", {
 
 export type VideoResearch = typeof videoResearch.$inferSelect;
 export type InsertVideoResearch = typeof videoResearch.$inferInsert;
+
+// ─── Telegram Content Bot ─────────────────────────────────────────────────────
+export const telegramPosts = mysqlTable("telegram_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // Content
+  textContent: text("textContent").notNull(),
+  imageUrl: text("imageUrl"),
+  imagePrompt: text("imagePrompt"),
+  // Topic / Theme
+  topic: varchar("topic", { length: 255 }),
+  contentType: mysqlEnum("contentType", ["tip", "insight", "motivation", "market_update", "signal_preview", "education", "social_proof"]).default("tip").notNull(),
+  // Status
+  status: mysqlEnum("status", ["draft", "scheduled", "sent", "failed"]).default("draft").notNull(),
+  errorMessage: text("errorMessage"),
+  // Telegram response
+  telegramMessageId: varchar("telegramMessageId", { length: 64 }),
+  chatId: varchar("chatId", { length: 64 }),
+  // Scheduling
+  scheduledAt: timestamp("scheduledAt"),
+  sentAt: timestamp("sentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TelegramPost = typeof telegramPosts.$inferSelect;
+export type InsertTelegramPost = typeof telegramPosts.$inferInsert;
+
+export const telegramSettings = mysqlTable("telegram_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  // Posting schedule
+  postingTimeHour: int("postingTimeHour").default(9).notNull(),   // 0-23
+  postingTimeMinute: int("postingTimeMinute").default(0).notNull(), // 0-59
+  isActive: boolean("isActive").default(true).notNull(),
+  // Content preferences
+  defaultLanguage: varchar("defaultLanguage", { length: 8 }).default("de").notNull(),
+  includeEmoji: boolean("includeEmoji").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TelegramSettings = typeof telegramSettings.$inferSelect;
+export type InsertTelegramSettings = typeof telegramSettings.$inferInsert;

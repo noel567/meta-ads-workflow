@@ -28,6 +28,12 @@ import {
   heygenVideos,
   InsertHeygenVideo,
   HeygenVideo,
+  telegramPosts,
+  InsertTelegramPost,
+  TelegramPost,
+  telegramSettings,
+  InsertTelegramSettings,
+  TelegramSettings,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -499,4 +505,49 @@ export async function deleteVideoResearch(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(videoResearch).where(and(eq(videoResearch.id, id), eq(videoResearch.userId, userId)));
+}
+
+// ─── Telegram Content Bot ─────────────────────────────────────────────────────
+export async function getTelegramPosts(userId: number, limit = 30): Promise<TelegramPost[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(telegramPosts).where(eq(telegramPosts.userId, userId)).orderBy(desc(telegramPosts.createdAt)).limit(limit);
+}
+export async function getTelegramPostById(id: number, userId: number): Promise<TelegramPost | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(telegramPosts).where(and(eq(telegramPosts.id, id), eq(telegramPosts.userId, userId))).limit(1);
+  return result[0];
+}
+export async function createTelegramPost(data: InsertTelegramPost): Promise<number | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.insert(telegramPosts).values(data);
+  return (result as any)[0]?.insertId as number | undefined;
+}
+export async function updateTelegramPost(id: number, data: Partial<InsertTelegramPost>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(telegramPosts).set(data).where(eq(telegramPosts.id, id));
+}
+export async function deleteTelegramPost(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(telegramPosts).where(and(eq(telegramPosts.id, id), eq(telegramPosts.userId, userId)));
+}
+export async function getTelegramSettings(userId: number): Promise<TelegramSettings | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(telegramSettings).where(eq(telegramSettings.userId, userId)).limit(1);
+  return result[0];
+}
+export async function upsertTelegramSettings(data: InsertTelegramSettings): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await getTelegramSettings(data.userId);
+  if (existing) {
+    await db.update(telegramSettings).set(data).where(eq(telegramSettings.userId, data.userId));
+  } else {
+    await db.insert(telegramSettings).values(data);
+  }
 }

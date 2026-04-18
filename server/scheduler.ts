@@ -3,9 +3,111 @@
  * Läuft täglich um 07:00 Uhr und scannt alle aktiven Konkurrenten.
  */
 
-import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor, getGoogleDriveConnection, updateAdBatch, createDocument } from "./db";
+import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor, getGoogleDriveConnection, updateAdBatch, createDocument, getTelegramSettings, createTelegramPost, updateTelegramPost } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
+
+
+// ─── Daily Telegram Post ─────────────────────────────────────────────────────
+
+const TELEGRAM_SYSTEM_PROMPT = `Du bist der Content-Operator von EasySignals, einer exklusiven Trading-Marke aus der Schweiz (DACH-Fokus).
+EasySignals steht für: Community, Status, Führung, Resultate, Struktur, System, Komfort, Exklusivität.
+Sprache für Telegram: Berndeutsch / Schweizerdeutsch – echtes, natürliches, lokales Berndeutsch.
+Tonalität: direkt, emotional, klar, stark, modern, hochwertig, präzise, community-nah.
+Vermeide: generische Standard-Copy, langweilige Motivationssprüche, KI-Haftigkeit.`;
+
+const TELEGRAM_CONTENT_TYPES = [
+  { type: "tip" as const, label: "Trading-Tipp", prompt: "Schreib einen praktischen Trading-Tipp auf Berndeutsch. Konkret, umsetzbar, kein Blabla. Mit 1-2 passenden Emojis." },
+  { type: "insight" as const, label: "Markt-Insight", prompt: "Schreib einen Markt-Insight über Gold (XAUUSD) auf Berndeutsch. Zeig Expertise ohne Theorie-Overload." },
+  { type: "motivation" as const, label: "Motivation", prompt: "Schreib einen starken Motivationspost auf Berndeutsch. Bezug auf Trading, Disziplin, System. Kurz und kraftvoll." },
+  { type: "market_update" as const, label: "Marktupdate", prompt: "Schreib ein kurzes Marktupdate auf Berndeutsch. Gold/XAUUSD Fokus." },
+  { type: "signal_preview" as const, label: "Signal-Preview", prompt: "Schreib einen FOMO-starken Signal-Preview Post auf Berndeutsch. Community-Building. Exklusivität." },
+  { type: "education" as const, label: "Education", prompt: "Schreib einen Education-Post auf Berndeutsch. Erkläre ein Trading-Konzept einfach und direkt." },
+  { type: "social_proof" as const, label: "Social Proof", prompt: "Schreib einen Social-Proof Post auf Berndeutsch. Trust aufbauen ohne Scam-Feeling." },
+];
+
+export async function runDailyTelegramPost(userId: number) {
+  const settings = await getTelegramSettings(userId);
+  if (settings && !settings.isActive) {
+    console.log("[Telegram] Auto-Post deaktiviert, überspringe.");
+    return;
+  }
+
+  const types = TELEGRAM_CONTENT_TYPES;
+  const selectedType = types[Math.floor(Math.random() * types.length)];
+
+  const textResponse = await invokeLLM({
+    messages: [
+      { role: "system", content: TELEGRAM_SYSTEM_PROMPT },
+      { role: "user", content: `${selectedType.prompt}\n\nDer Post soll 3-6 Zeilen lang sein. Direkt, stark, kein Fülltext. Für Telegram optimiert.` },
+    ],
+  });
+  const textContent = (textResponse as any).choices?.[0]?.message?.content ?? "";
+
+  const promptResponse = await invokeLLM({
+    messages: [
+      { role: "system", content: "Write a short image generation prompt (max 2 sentences) for a professional trading Telegram post. Dark theme, no text in image." },
+      { role: "user", content: `Image for: ${selectedType.label}. Context: ${textContent.slice(0, 200)}` },
+    ],
+  });
+  const imagePrompt = (promptResponse as any).choices?.[0]?.message?.content ?? "professional trading chart dark theme";
+
+  let imageUrl: string | undefined;
+  try {
+    const { generateImage } = await import("./_core/imageGeneration");
+    const result = await generateImage({ prompt: imagePrompt });
+    imageUrl = result.url;
+  } catch (imgErr: any) {
+    console.warn("[Telegram] Image generation failed:", imgErr.message?.slice(0, 100));
+  }
+
+  const postId = await createTelegramPost({
+    userId,
+    textContent,
+    imageUrl: imageUrl ?? null,
+    imagePrompt,
+    topic: selectedType.label,
+    contentType: selectedType.type,
+    status: "draft",
+  });
+
+  if (!postId) return;
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (botToken && chatId) {
+    try {
+      let messageId: string | undefined;
+      if (imageUrl) {
+        const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: textContent, parse_mode: "HTML" }),
+        });
+        const data = await res.json() as any;
+        if (data.ok) messageId = String(data.result?.message_id);
+        else throw new Error(data.description);
+      } else {
+        const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: textContent, parse_mode: "HTML" }),
+        });
+        const data = await res.json() as any;
+        if (data.ok) messageId = String(data.result?.message_id);
+        else throw new Error(data.description);
+      }
+      await updateTelegramPost(postId, { status: "sent", sentAt: new Date(), telegramMessageId: messageId, chatId });
+      console.log(`[Telegram] Daily post sent successfully (message_id: ${messageId})`);
+    } catch (err: any) {
+      await updateTelegramPost(postId, { status: "failed", errorMessage: err.message });
+      console.error(`[Telegram] Daily post failed:`, err.message);
+    }
+  } else {
+    console.warn("[Telegram] Bot token or chat ID not set, post saved as draft.");
+  }
+}
+
 
 // ─── Ad Library Fetch ─────────────────────────────────────────────────────────
 
@@ -390,6 +492,17 @@ export function startScheduler(userId: number) {
         console.log(`[Scheduler] Daily scan completed:`, result);
       } catch (e) {
         console.error(`[Scheduler] Daily scan failed:`, e);
+      }
+    }
+
+    // Telegram daily post: run at 07:00 UTC (09:00 CEST) – after the scan
+    if (hour === 7 && minute >= 5 && minute < 10) {
+      console.log(`[Scheduler] Running daily Telegram post for user ${userId}...`);
+      try {
+        await runDailyTelegramPost(userId);
+        console.log(`[Scheduler] Daily Telegram post completed.`);
+      } catch (e) {
+        console.error(`[Scheduler] Daily Telegram post failed:`, e);
       }
     }
   }, 5 * 60 * 1000); // Check every 5 minutes

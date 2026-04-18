@@ -18,6 +18,8 @@ import {
   getScanLogs, createScanLog, updateScanLog,
   createHeygenVideo, getHeygenVideos, getHeygenVideosByBatch, updateHeygenVideo, getHeygenVideoByHeygenId,
   createVideoResearch, getVideoResearchList, getVideoResearchById, updateVideoResearch, deleteVideoResearch,
+  getTelegramPosts, getTelegramPostById, createTelegramPost, updateTelegramPost, deleteTelegramPost,
+  getTelegramSettings, upsertTelegramSettings,
 } from "./db";
 import { runDailyScan, startScheduler } from "./scheduler";
 import { ENV } from "./_core/env";
@@ -1243,6 +1245,196 @@ Liefere vollständige EasySignals-Adaptionen als JSON.`,
     }),
 });
 
+// ─── Telegram Content Bot Router ────────────────────────────────────────────
+const EASYSIGNALS_SYSTEM_PROMPT = `Du bist der Content-Operator von EasySignals, einer exklusiven Trading-Marke aus der Schweiz (DACH-Fokus).
+
+EasySignals steht für: Community, Status, Führung, Resultate, Struktur, System, Komfort, Exklusivität.
+Das Gesicht: Livio Glausen / LivioSwiss.
+
+Kernangebote:
+- Signalgruppe (kostenlose Community, Gold/XAUUSD Fokus)
+- LAT System (automatisches Trade-Copying, Plug-and-Play)
+- Passing Service / Prop-Firm (limitiert, FOMO, Warteliste)
+- Coaching / Bootcamp (Struktur, Umsetzung, echte Regeln)
+
+Zielgruppen: Anfänger mit Scam-Angst, Leute mit wenig Zeit, frustrierte Trader, Prop-Firm-Interessenten, Community-getriebene Menschen.
+
+Tonalität: direkt, emotional, klar, stark, modern, hochwertig, präzise, conversion-orientiert, sprechbar, organisch, teils provokativ, community-nah.
+
+Sprache für Telegram: Berndeutsch / Schweizerdeutsch – echtes, natürliches, lokales Berndeutsch. NICHT Hochdeutsch mit Schweizer Wörtern.
+
+Vermeide: generische Standard-Copy, langweilige Motivationssprüche, Agentur-Blabla, trockenen Finanzsprech, KI-Haftigkeit.`;
+
+const CONTENT_TYPES = [
+  { type: "tip" as const, label: "Trading-Tipp", prompt: "Schreib einen praktischen Trading-Tipp auf Berndeutsch. Konkret, umsetzbar, kein Blabla. Mit 1-2 passenden Emojis." },
+  { type: "insight" as const, label: "Markt-Insight", prompt: "Schreib einen Markt-Insight über Gold (XAUUSD) oder allgemein Trading auf Berndeutsch. Zeig Expertise ohne Theorie-Overload." },
+  { type: "motivation" as const, label: "Motivation", prompt: "Schreib einen starken Motivationspost auf Berndeutsch. Nicht generisch. Bezug auf Trading, Disziplin, System. Kurz und kraftvoll." },
+  { type: "market_update" as const, label: "Marktupdate", prompt: "Schreib ein kurzes Marktupdate auf Berndeutsch. Gold/XAUUSD Fokus. Zeig was gerade passiert und was das für Trader bedeutet." },
+  { type: "signal_preview" as const, label: "Signal-Preview", prompt: "Schreib einen FOMO-starken Signal-Preview Post auf Berndeutsch. Zeig dass heute Signale kommen / kamen. Community-Building. Exklusivität." },
+  { type: "education" as const, label: "Education", prompt: "Schreib einen Education-Post auf Berndeutsch. Erkläre ein Trading-Konzept einfach und direkt. Kein Lehrbuch-Stil." },
+  { type: "social_proof" as const, label: "Social Proof", prompt: "Schreib einen Social-Proof Post auf Berndeutsch. Zeig Resultate, Community-Erfolge oder Testimonials. Trust aufbauen ohne Scam-Feeling." },
+];
+
+async function sendToTelegram(botToken: string, chatId: string, textContent: string, imageUrl?: string | null) {
+  if (imageUrl) {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: textContent, parse_mode: "HTML" }),
+    });
+    const data = await res.json() as any;
+    if (!data.ok) throw new Error(data.description ?? "Telegram API Fehler");
+    return String(data.result?.message_id);
+  } else {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: textContent, parse_mode: "HTML" }),
+    });
+    const data = await res.json() as any;
+    if (!data.ok) throw new Error(data.description ?? "Telegram API Fehler");
+    return String(data.result?.message_id);
+  }
+}
+
+async function generateTelegramContent(contentType?: string, customTopic?: string) {
+  const types = CONTENT_TYPES;
+  const selectedType = contentType
+    ? types.find(t => t.type === contentType) ?? types[Math.floor(Math.random() * types.length)]
+    : types[Math.floor(Math.random() * types.length)];
+  const topicHint = customTopic ? `\n\nThema des Posts: ${customTopic}` : "";
+
+  const textResponse = await invokeLLM({
+    messages: [
+      { role: "system", content: EASYSIGNALS_SYSTEM_PROMPT },
+      { role: "user", content: `${selectedType.prompt}${topicHint}\n\nDer Post soll 3-6 Zeilen lang sein. Direkt, stark, kein Fülltext. Für Telegram optimiert. Kein Hashtag-Spam.` },
+    ],
+  });
+  const textContent = (textResponse as any).choices?.[0]?.message?.content ?? "";
+
+  const promptResponse = await invokeLLM({
+    messages: [
+      { role: "system", content: "You are an expert at writing image generation prompts for trading content. Write concise, visual, professional prompts." },
+      { role: "user", content: `Create a short image generation prompt (max 2 sentences) for a Telegram post about: ${selectedType.label}. Professional, modern, dark theme, trading/finance aesthetic. No text in image. Context: ${textContent.slice(0, 200)}` },
+    ],
+  });
+  const imagePrompt = (promptResponse as any).choices?.[0]?.message?.content ?? "professional trading chart dark theme";
+
+  let imageUrl: string | undefined;
+  try {
+    const { generateImage } = await import("./_core/imageGeneration");
+    const result = await generateImage({ prompt: imagePrompt });
+    imageUrl = result.url;
+  } catch (imgErr: any) {
+    console.warn("[Telegram] Image generation failed:", imgErr.message?.slice(0, 100));
+  }
+
+  return { textContent, imageUrl, imagePrompt, selectedType };
+}
+
+const telegramRouter = router({
+  getSettings: protectedProcedure.query(async ({ ctx }) => {
+    return await getTelegramSettings(ctx.user.id) ?? {
+      postingTimeHour: 9, postingTimeMinute: 0, isActive: true, defaultLanguage: "de", includeEmoji: true,
+    };
+  }),
+
+  saveSettings: protectedProcedure
+    .input(z.object({
+      postingTimeHour: z.number().min(0).max(23),
+      postingTimeMinute: z.number().min(0).max(59),
+      isActive: z.boolean(),
+      includeEmoji: z.boolean(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await upsertTelegramSettings({ userId: ctx.user.id, ...input, defaultLanguage: "de" });
+      return { success: true };
+    }),
+
+  getPosts: protectedProcedure.query(async ({ ctx }) => {
+    return await getTelegramPosts(ctx.user.id, 50);
+  }),
+
+  generatePost: protectedProcedure
+    .input(z.object({
+      contentType: z.enum(["tip", "insight", "motivation", "market_update", "signal_preview", "education", "social_proof"]).optional(),
+      customTopic: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { textContent, imageUrl, imagePrompt, selectedType } = await generateTelegramContent(input.contentType, input.customTopic);
+      const postId = await createTelegramPost({
+        userId: ctx.user.id, textContent, imageUrl: imageUrl ?? null, imagePrompt,
+        topic: input.customTopic ?? selectedType.label, contentType: selectedType.type, status: "draft",
+      });
+      return { id: postId, textContent, imageUrl, imagePrompt, contentType: selectedType.type };
+    }),
+
+  sendPost: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const post = await getTelegramPostById(input.id, ctx.user.id);
+      if (!post) throw new Error("Post nicht gefunden");
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const chatId = process.env.TELEGRAM_CHAT_ID;
+      if (!botToken || !chatId) throw new Error("Telegram Bot Token oder Chat ID nicht konfiguriert");
+      try {
+        const messageId = await sendToTelegram(botToken, chatId, post.textContent, post.imageUrl);
+        await updateTelegramPost(input.id, { status: "sent", sentAt: new Date(), telegramMessageId: messageId, chatId });
+        return { success: true, messageId };
+      } catch (err: any) {
+        await updateTelegramPost(input.id, { status: "failed", errorMessage: err.message });
+        throw new Error(`Telegram-Versand fehlgeschlagen: ${err.message}`);
+      }
+    }),
+
+  updatePost: protectedProcedure
+    .input(z.object({ id: z.number(), textContent: z.string(), imageUrl: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      await updateTelegramPost(input.id, { textContent: input.textContent, imageUrl: input.imageUrl ?? null, status: "draft" });
+      return { success: true };
+    }),
+
+  deletePost: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      await deleteTelegramPost(input.id, ctx.user.id);
+      return { success: true };
+    }),
+
+  runDailyPost: protectedProcedure.mutation(async ({ ctx }) => {
+    const settings = await getTelegramSettings(ctx.user.id);
+    if (settings && !settings.isActive) return { skipped: true, reason: "Auto-Post deaktiviert" };
+    const { textContent, imageUrl, imagePrompt, selectedType } = await generateTelegramContent();
+    const postId = await createTelegramPost({
+      userId: ctx.user.id, textContent, imageUrl: imageUrl ?? null, imagePrompt,
+      topic: selectedType.label, contentType: selectedType.type, status: "draft",
+    });
+    if (!postId) return { skipped: true, reason: "DB-Fehler" };
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    if (botToken && chatId) {
+      try {
+        const messageId = await sendToTelegram(botToken, chatId, textContent, imageUrl);
+        await updateTelegramPost(postId, { status: "sent", sentAt: new Date(), telegramMessageId: messageId, chatId });
+      } catch (err: any) {
+        await updateTelegramPost(postId, { status: "failed", errorMessage: err.message });
+      }
+    }
+    return { success: true, postId, textContent, imageUrl };
+  }),
+
+  testConnection: protectedProcedure.mutation(async () => {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    if (!botToken) throw new Error("TELEGRAM_BOT_TOKEN nicht gesetzt");
+    if (!chatId) throw new Error("TELEGRAM_CHAT_ID nicht gesetzt");
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+    const data = await res.json() as any;
+    if (!data.ok) throw new Error(data.description ?? "Bot nicht erreichbar");
+    return { ok: true, botName: data.result?.username, chatId };
+  }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -1268,6 +1460,7 @@ export const appRouter = router({
   heygen: heygenRouter,
   hooks: hooksRouter,
   videoResearch: videoResearchRouter,
+  telegram: telegramRouter,
 });
 
 export type AppRouter = typeof appRouter;
