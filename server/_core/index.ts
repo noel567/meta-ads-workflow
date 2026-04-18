@@ -61,10 +61,11 @@ async function startServer() {
   });
 
   // Public Telegram test endpoint (no auth required, for owner testing)
-  app.post("/api/telegram/test", async (_req, res) => {
+  app.post("/api/telegram/test", async (req, res) => {
     try {
       const { sendTelegramDirectPost } = await import("../scheduler");
-      const result = await sendTelegramDirectPost();
+      const chatIdOverride = (req.body as any)?.chatId as string | undefined;
+      const result = await sendTelegramDirectPost(chatIdOverride);
       res.json({ success: true, result });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });

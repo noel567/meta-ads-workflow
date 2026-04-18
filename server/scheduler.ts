@@ -111,9 +111,9 @@ export async function runDailyTelegramPost(userId: number) {
 
 // ─── Direct Telegram Post (no userId required) ──────────────────────────────
 
-export async function sendTelegramDirectPost() {
+export async function sendTelegramDirectPost(chatIdOverride?: string) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const chatId = chatIdOverride || process.env.TELEGRAM_CHAT_ID;
   if (!botToken) throw new Error("TELEGRAM_BOT_TOKEN nicht gesetzt");
   if (!chatId) throw new Error("TELEGRAM_CHAT_ID nicht gesetzt");
 
