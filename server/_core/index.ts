@@ -40,17 +40,31 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Google Drive OAuth routes
   registerGoogleOAuthRoutes(app);
+  // Public Telegram getUpdates endpoint to discover chat IDs
+  app.get("/api/telegram/get-updates", async (_req, res) => {
+    try {
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (!botToken) { res.status(500).json({ error: "TELEGRAM_BOT_TOKEN nicht gesetzt" }); return; }
+      const r = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?limit=10`, { method: "GET" });
+      const data = await r.json() as any;
+      // Extract unique chats
+      const chats = (data.result || []).map((u: any) => ({
+        chat_id: u.message?.chat?.id || u.channel_post?.chat?.id,
+        title: u.message?.chat?.title || u.channel_post?.chat?.title || u.message?.chat?.username,
+        type: u.message?.chat?.type || u.channel_post?.chat?.type,
+        text: u.message?.text || u.channel_post?.text,
+      })).filter((c: any) => c.chat_id);
+      res.json({ ok: data.ok, chats, raw: data.result?.slice(0, 3) });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Public Telegram test endpoint (no auth required, for owner testing)
   app.post("/api/telegram/test", async (_req, res) => {
     try {
-      const { runDailyTelegramPost } = await import("../scheduler");
-      // Get owner user ID from DB
-      const { getDb, getUserByOpenId } = await import("../db");
-      const ownerOpenId = process.env.OWNER_OPEN_ID;
-      if (!ownerOpenId) throw new Error("OWNER_OPEN_ID nicht gesetzt");
-      const owner = await getUserByOpenId(ownerOpenId);
-      if (!owner) throw new Error("Owner noch nicht eingeloggt – bitte einmal in der App anmelden");
-      const result = await runDailyTelegramPost(owner.id);
+      const { sendTelegramDirectPost } = await import("../scheduler");
+      const result = await sendTelegramDirectPost();
       res.json({ success: true, result });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });

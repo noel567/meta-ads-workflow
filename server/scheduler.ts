@@ -109,6 +109,66 @@ export async function runDailyTelegramPost(userId: number) {
 }
 
 
+// ─── Direct Telegram Post (no userId required) ──────────────────────────────
+
+export async function sendTelegramDirectPost() {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!botToken) throw new Error("TELEGRAM_BOT_TOKEN nicht gesetzt");
+  if (!chatId) throw new Error("TELEGRAM_CHAT_ID nicht gesetzt");
+
+  const types = TELEGRAM_CONTENT_TYPES;
+  const selectedType = types[Math.floor(Math.random() * types.length)];
+
+  const textResponse = await invokeLLM({
+    messages: [
+      { role: "system", content: TELEGRAM_SYSTEM_PROMPT },
+      { role: "user", content: `${selectedType.prompt}\n\nDer Post soll 3-6 Zeilen lang sein. Direkt, stark, kein Fülltext. Für Telegram optimiert.` },
+    ],
+  });
+  const textContent = (textResponse as any).choices?.[0]?.message?.content ?? "";
+
+  const promptResponse = await invokeLLM({
+    messages: [
+      { role: "system", content: "Write a short image generation prompt (max 2 sentences) for a professional trading Telegram post. Dark theme, no text in image." },
+      { role: "user", content: `Image for: ${selectedType.label}. Context: ${textContent.slice(0, 200)}` },
+    ],
+  });
+  const imagePrompt = (promptResponse as any).choices?.[0]?.message?.content ?? "professional trading chart dark theme";
+
+  let imageUrl: string | undefined;
+  try {
+    const { generateImage } = await import("./_core/imageGeneration");
+    const result = await generateImage({ prompt: imagePrompt });
+    imageUrl = result.url;
+  } catch (imgErr: any) {
+    console.warn("[Telegram] Image generation failed:", imgErr.message?.slice(0, 100));
+  }
+
+  // Send to Telegram
+  if (imageUrl) {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: textContent, parse_mode: "HTML" }),
+    });
+    const data = await res.json() as any;
+    if (!data.ok) throw new Error(data.description);
+    console.log(`[Telegram] Direct post sent (message_id: ${data.result?.message_id})`);
+    return { messageId: data.result?.message_id, text: textContent, imageUrl, topic: selectedType.label };
+  } else {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: textContent, parse_mode: "HTML" }),
+    });
+    const data = await res.json() as any;
+    if (!data.ok) throw new Error(data.description);
+    console.log(`[Telegram] Direct text post sent (message_id: ${data.result?.message_id})`);
+    return { messageId: data.result?.message_id, text: textContent, topic: selectedType.label };
+  }
+}
+
 // ─── Ad Library Fetch ─────────────────────────────────────────────────────────
 
 async function fetchAdLibrary(query: string, country: string, accessToken: string) {
