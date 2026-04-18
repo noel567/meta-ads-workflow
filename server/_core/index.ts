@@ -90,6 +90,74 @@ async function startServer() {
     }
   });
 
+  // Chrome Extension: Ad Library Save Endpoint
+  // Empfängt Ads von der Chrome Extension und speichert sie in der Video Research Pipeline
+  app.post("/api/ads-library/save", async (req, res) => {
+    // CORS für Extension erlauben
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    try {
+      const body = req.body as any;
+      const { sourceUrl, platform, competitorName, adText, adId, pageId, imageUrl, adLibraryUrl, language, notes } = body;
+
+      if (!sourceUrl && !adLibraryUrl) {
+        res.status(400).json({ error: "sourceUrl oder adLibraryUrl erforderlich" });
+        return;
+      }
+
+      const { createVideoResearch } = await import("../db");
+
+      // Nutze adLibraryUrl als sourceUrl wenn kein direktes Video vorhanden
+      const finalUrl = sourceUrl || adLibraryUrl;
+
+      // Notizen zusammenbauen
+      const notesParts: string[] = [];
+      if (adText) notesParts.push(`Ad-Text: ${adText.slice(0, 500)}`);
+      if (adId) notesParts.push(`Ad-ID: ${adId}`);
+      if (pageId) notesParts.push(`Page-ID: ${pageId}`);
+      if (imageUrl) notesParts.push(`Bild-URL: ${imageUrl}`);
+      if (notes) notesParts.push(notes);
+
+      // Wir speichern ohne userId (public endpoint) – userId = 0 als Platzhalter
+      // In Produktion: Auth-Token aus Extension verwenden
+      const id = await createVideoResearch({
+        userId: 1, // Default owner user
+        sourceUrl: finalUrl,
+        platform: platform || "facebook",
+        competitorName: competitorName || null,
+        competitorId: null,
+        language: language || "de",
+        notes: notesParts.join(" | ") || null,
+        status: "pending",
+      });
+
+      console.log(`[Extension] Ad gespeichert: ${competitorName || "Unbekannt"} | ${finalUrl.slice(0, 80)}`);
+
+      res.json({
+        success: true,
+        id,
+        message: `Ad von "${competitorName || "Unbekannt"}" in Video Research gespeichert`,
+        videoResearchUrl: "/video-research",
+      });
+    } catch (err: any) {
+      console.error("[Extension] Save error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // CORS preflight für Extension
+  app.options("/api/ads-library/save", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.status(200).end();
+  });
+
+  // Health check endpoint
+  app.get("/api/health", (_req, res) => {
+    res.json({ ok: true, service: "EasySignals Meta Ads Workflow" });
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
