@@ -21,7 +21,7 @@ import {
   getTelegramPosts, getTelegramPostById, createTelegramPost, updateTelegramPost, deleteTelegramPost,
   getTelegramSettings, upsertTelegramSettings,
 } from "./db";
-import { runDailyScan, startScheduler } from "./scheduler";
+import { runDailyScan, startScheduler, runDailyTelegramPost } from "./scheduler";
 import { ENV } from "./_core/env";
 
 // ─── Meta API Helper ──────────────────────────────────────────────────────────

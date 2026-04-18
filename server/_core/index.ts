@@ -40,6 +40,23 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Google Drive OAuth routes
   registerGoogleOAuthRoutes(app);
+  // Public Telegram test endpoint (no auth required, for owner testing)
+  app.post("/api/telegram/test", async (_req, res) => {
+    try {
+      const { runDailyTelegramPost } = await import("../scheduler");
+      // Get owner user ID from DB
+      const { getDb, getUserByOpenId } = await import("../db");
+      const ownerOpenId = process.env.OWNER_OPEN_ID;
+      if (!ownerOpenId) throw new Error("OWNER_OPEN_ID nicht gesetzt");
+      const owner = await getUserByOpenId(ownerOpenId);
+      if (!owner) throw new Error("Owner noch nicht eingeloggt – bitte einmal in der App anmelden");
+      const result = await runDailyTelegramPost(owner.id);
+      res.json({ success: true, result });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

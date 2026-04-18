@@ -32,7 +32,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function TelegramBot() {
-  const [selectedContentType, setSelectedContentType] = useState<string>("");
+  const [selectedContentType, setSelectedContentType] = useState<string>("random");
   const [customTopic, setCustomTopic] = useState("");
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
@@ -231,7 +231,7 @@ export default function TelegramBot() {
                 <SelectValue placeholder="Content-Typ (zufällig)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">🎲 Zufällig</SelectItem>
+                <SelectItem value="random">🎲 Zufällig</SelectItem>
                 {Object.entries(CONTENT_TYPE_LABELS).map(([val, label]) => (
                   <SelectItem key={val} value={val}>{label}</SelectItem>
                 ))}
@@ -246,7 +246,7 @@ export default function TelegramBot() {
           </div>
           <div className="flex gap-2">
             <Button
-              onClick={() => generatePost.mutate({ contentType: selectedContentType as any || undefined, customTopic: customTopic || undefined })}
+              onClick={() => generatePost.mutate({ contentType: (selectedContentType === 'random' ? undefined : selectedContentType) as any, customTopic: customTopic || undefined })}
               disabled={generatePost.isPending}
               className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
             >
