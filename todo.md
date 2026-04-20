@@ -273,3 +273,10 @@
 - [x] Frontend: Ausführungsprotokoll (wann ausgelöst, was geändert, Begründung)
 - [x] Frontend: "Jetzt ausführen" Button für manuellen Test
 - [x] Sidebar-Navigation: Budget-Regeln Eintrag
+
+## Telegram-Benachrichtigung bei Budgetanpassungen (April 2026)
+- [x] budgetRulesRouter: sendTelegramRuleNotification Hilfsfunktion (Bot API sendMessage)
+- [x] executeRule: Telegram-Nachricht nach jeder ausgelösten Aktion senden (Budget erhöht/gesenkt/pausiert/aktiviert)
+- [x] Nachrichtenformat: Emoji + Regelname + Kampagne + Metrik-Wert + Aktion + altes/neues Budget
+- [x] Nur bei triggered=true benachrichtigen (nicht bei nicht erfüllten Bedingungen)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

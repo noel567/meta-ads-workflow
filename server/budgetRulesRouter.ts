@@ -94,6 +94,72 @@ async function getAllCampaignIds(): Promise<Array<{ id: string; name: string }>>
   }
 }
 
+// ─── Telegram-Benachrichtigung senden ───────────────────────────────────────
+async function sendTelegramRuleNotification(params: {
+  ruleName: string;
+  campaignName: string;
+  action: string;
+  metric: string;
+  metricValue: number;
+  condition: string;
+  threshold: number;
+  oldBudgetCents?: number;
+  newBudgetCents?: number;
+  success: boolean;
+  errorMessage?: string | null;
+}): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!botToken || !chatId) return;
+
+  const actionEmoji: Record<string, string> = {
+    increase: "📈",
+    decrease: "📉",
+    pause: "⏸️",
+    activate: "▶️",
+  };
+  const actionLabel: Record<string, string> = {
+    increase: "Budget erhöht",
+    decrease: "Budget gesenkt",
+    pause: "Kampagne pausiert",
+    activate: "Kampagne aktiviert",
+  };
+  const condLabel: Record<string, string> = { gt: ">", lt: "<", gte: "≥", lte: "≤" };
+
+  const emoji = params.success ? (actionEmoji[params.action] ?? "🤖") : "❌";
+  const statusLine = params.success ? "✅ Erfolgreich ausgeführt" : `❌ Fehler: ${params.errorMessage ?? "unbekannt"}`;
+
+  let budgetLine = "";
+  if (params.oldBudgetCents !== undefined && params.newBudgetCents !== undefined) {
+    const oldChf = (params.oldBudgetCents / 100).toFixed(2);
+    const newChf = (params.newBudgetCents / 100).toFixed(2);
+    budgetLine = `\n💰 Budget: CHF ${oldChf} → CHF ${newChf}`;
+  }
+
+  const text = [
+    `${emoji} <b>Budget-Regel ausgelöst</b>`,
+    ``,
+    `📋 <b>Regel:</b> ${params.ruleName}`,
+    `🎯 <b>Kampagne:</b> ${params.campaignName}`,
+    `📊 <b>Metrik:</b> ${params.metric.toUpperCase()} ${condLabel[params.condition] ?? params.condition} ${params.threshold} (Wert: ${params.metricValue.toFixed(2)})`,
+    `⚡ <b>Aktion:</b> ${actionLabel[params.action] ?? params.action}${budgetLine}`,
+    ``,
+    statusLine,
+    ``,
+    `<i>${new Date().toLocaleString("de-CH", { timeZone: "Europe/Zurich" })} Uhr</i>`,
+  ].join("\n");
+
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+    });
+  } catch (e) {
+    console.error("[BudgetRules] Telegram-Benachrichtigung fehlgeschlagen:", e);
+  }
+}
+
 // ─── Regel ausführen ─────────────────────────────────────────────────────────
 export async function executeRule(rule: any): Promise<void> {
   const db = await getDb();
@@ -184,6 +250,23 @@ export async function executeRule(rule: any): Promise<void> {
       success,
       errorMessage,
     });
+
+    // Telegram-Benachrichtigung nur bei ausgelöster Aktion senden
+    if (triggered) {
+      await sendTelegramRuleNotification({
+        ruleName: rule.name,
+        campaignName,
+        action: rule.action,
+        metric: rule.metric,
+        metricValue: value,
+        condition: rule.condition,
+        threshold: rule.threshold,
+        oldBudgetCents: currentBudgetCents,
+        newBudgetCents,
+        success,
+        errorMessage,
+      });
+    }
   }
 
   // lastExecutedAt aktualisieren
