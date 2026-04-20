@@ -149,7 +149,7 @@ function CreativeDetailSheet({ ad, open, onClose }: { ad: any | null; open: bool
                     <p className="text-sm text-slate-500">Keine Vorschau verfügbar</p>
                   </div>
                 )}
-                {ad.videoId && (
+                {ad.adId && (
                   <a
                     href={`https://www.facebook.com/ads/library/?id=${ad.adId}`}
                     target="_blank"

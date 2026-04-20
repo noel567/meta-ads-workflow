@@ -237,11 +237,11 @@
 - [x] Frontend: Ad-Text expandierbar pro Creative-Card
 
 ## Creative Detail Ansicht (April 2026)
-- [ ] Datenbank: ad_comments Tabelle (ad_id, user_id, text, created_at)
-- [ ] Server: adComments.add, adComments.list, adComments.delete Procedures
-- [ ] Frontend: Creative Detail Slide-over Panel (Sheet)
-- [ ] Frontend: Vollständige Ad-Vorschau (grosses Thumbnail + Video-Link)
-- [ ] Frontend: Alle KPIs in Detailansicht (Spend, CTR, CPC, CPL, Impressionen, Reichweite, Klicks)
-- [ ] Frontend: Vollständiger Ad-Text in Detailansicht
-- [ ] Frontend: Kommentar-Eingabe und Kommentar-Liste
-- [ ] Frontend: Kommentar löschen
+- [x] Datenbank: ad_comments Tabelle (ad_id, user_id, text, created_at)
+- [x] Server: adComments.add, adComments.list, adComments.delete Procedures
+- [x] Frontend: Creative Detail Slide-over Panel (Sheet) – rechts aufklappend
+- [x] Frontend: Vollständige Ad-Vorschau (grosses Thumbnail + Link zu Ad Library)
+- [x] Frontend: Alle 8 KPIs in Detailansicht (Spend, CTR, CPC, CPL, Impressionen, Reichweite, Klicks, Leads)
+- [x] Frontend: Vollständiger Ad-Text in Detailansicht (nicht abgeschnitten)
+- [x] Frontend: Kommentar-Eingabe mit Textarea + Speichern-Button
+- [x] Frontend: Kommentar-Liste mit Datum + Löschen (hover)
