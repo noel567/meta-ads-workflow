@@ -7,11 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   RefreshCw, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Zap, Target, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight,
   Lightbulb, ChevronRight, Loader2, Play, MessageSquare, Trash2,
-  ExternalLink, Eye, MousePointer, Users, Send
+  ExternalLink, Eye, MousePointer, Users, Send, PencilLine, X
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -84,7 +85,33 @@ function PriorityBadge({ priority }: { priority: string }) {
 // ─── Creative Detail Sheet ────────────────────────────────────────────────────
 function CreativeDetailSheet({ ad, open, onClose }: { ad: any | null; open: boolean; onClose: () => void }) {
   const [commentText, setCommentText] = useState("");
+  const [showBudgetEditor, setShowBudgetEditor] = useState(false);
+  const [budgetInput, setBudgetInput] = useState("");
   const utils = trpc.useUtils();
+
+  // Budget abrufen (nur wenn campaignId vorhanden und Sheet offen)
+  const { data: budgetData, refetch: refetchBudget } = trpc.metaInsights.getCampaignBudget.useQuery(
+    { campaignId: ad?.campaignId ?? "" },
+    { enabled: !!ad?.campaignId && open, retry: false }
+  );
+
+  const updateBudget = trpc.metaInsights.updateCampaignBudget.useMutation({
+    onSuccess: (d) => {
+      const chf = (d.newDailyBudgetCents / 100).toFixed(2);
+      toast.success(`✅ Budget auf CHF ${chf}/Tag gesetzt`);
+      setShowBudgetEditor(false);
+      setBudgetInput("");
+      refetchBudget();
+    },
+    onError: (e) => toast.error(`❌ Budget-Änderung fehlgeschlagen: ${e.message}`),
+  });
+
+  const handleBudgetSave = () => {
+    const val = parseFloat(budgetInput);
+    if (isNaN(val) || val < 1) { toast.error("Mindestbudget: CHF 1.00"); return; }
+    if (!ad?.campaignId) { toast.error("Keine Kampagnen-ID verfügbar"); return; }
+    updateBudget.mutate({ campaignId: ad.campaignId, newDailyBudgetCents: Math.round(val * 100) });
+  };
 
   const { data: comments, isLoading: commentsLoading } = trpc.adComments.list.useQuery(
     { adId: ad?.adId ?? "" },
@@ -231,6 +258,111 @@ function CreativeDetailSheet({ ad, open, onClose }: { ad: any | null; open: bool
                 <h3 className="text-sm font-semibold text-white mb-2">Anzeigentitel</h3>
                 <div className="bg-slate-900 border border-slate-800 rounded-lg p-3">
                   <p className="text-sm font-medium text-white">{ad.adTitle}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Budget-Anpassen */}
+            {ad.campaignId && (
+              <div className="px-6 pb-4">
+                <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-green-400" />
+                  Kampagnen-Budget
+                </h3>
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                  {/* Aktuelles Budget */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-slate-500 mb-0.5">Tagesbudget (Kampagne)</p>
+                      {budgetData ? (
+                        <p className="text-xl font-bold text-white">
+                          CHF {(budgetData.dailyBudgetCents / 100).toFixed(2)}
+                          <span className="text-xs text-slate-500 font-normal ml-1">/Tag</span>
+                        </p>
+                      ) : (
+                        <p className="text-sm text-slate-500">Wird geladen...</p>
+                      )}
+                      {budgetData && (
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Verbleibend: CHF {(budgetData.budgetRemainingCents / 100).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                    {!showBudgetEditor && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setBudgetInput(budgetData ? String((budgetData.dailyBudgetCents / 100).toFixed(2)) : "");
+                          setShowBudgetEditor(true);
+                        }}
+                        className="border-slate-700 text-slate-300 hover:text-white"
+                      >
+                        <PencilLine className="w-3.5 h-3.5 mr-1.5" />
+                        Anpassen
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Budget-Editor */}
+                  {showBudgetEditor && (
+                    <div className="border-t border-slate-800 pt-3 space-y-3">
+                      <p className="text-xs text-slate-400">Neues Tagesbudget in CHF eingeben:</p>
+                      <div className="flex gap-2">
+                        {/* Schnell-Buttons */}
+                        {budgetData && [
+                          { label: "-20%", factor: 0.8 },
+                          { label: "-10%", factor: 0.9 },
+                          { label: "+10%", factor: 1.1 },
+                          { label: "+20%", factor: 1.2 },
+                          { label: "+50%", factor: 1.5 },
+                        ].map(({ label, factor }) => (
+                          <button
+                            key={label}
+                            onClick={() => setBudgetInput(((budgetData.dailyBudgetCents / 100) * factor).toFixed(2))}
+                            className={`text-xs px-2 py-1 rounded border transition-colors ${
+                              factor < 1
+                                ? "border-red-500/40 text-red-400 hover:bg-red-500/10"
+                                : "border-green-500/40 text-green-400 hover:bg-green-500/10"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">CHF</span>
+                          <Input
+                            type="number"
+                            min="1"
+                            step="0.5"
+                            value={budgetInput}
+                            onChange={(e) => setBudgetInput(e.target.value)}
+                            className="pl-12 bg-slate-800 border-slate-700 text-white"
+                            placeholder="z.B. 35.00"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleBudgetSave}
+                          disabled={updateBudget.isPending || !budgetInput}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          {updateBudget.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Speichern"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => { setShowBudgetEditor(false); setBudgetInput(""); }}
+                          className="border-slate-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-amber-400/80">
+                        ⚠️ Änderung wird sofort in Meta übernommen. Bitte sorgfältig prüfen.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

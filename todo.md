@@ -252,3 +252,10 @@
 - [x] Cron-Job: täglich 10:05 Uhr CEST (nach Meta-Analyse um 10:00)
 - [x] Frontend: "Creative Report" Button in Telegram-Seite (manueller Trigger)
 - [x] Server: sendCreativeReport Procedure im metaInsightsRouter
+
+## Budget-Anpassen in Creative-Detailansicht (April 2026)
+- [ ] Server: metaInsights.updateAdsetBudget Procedure (Meta API PATCH /adset_id mit daily_budget)
+- [ ] Server: metaInsights.getAdsetBudget Procedure (aktuelles Budget abrufen)
+- [ ] Frontend: Budget-Anpassen UI im Creative Detail Sheet (aktuelles Budget anzeigen, Eingabefeld, +/- Buttons)
+- [ ] Frontend: Bestätigungs-Dialog vor Budget-Änderung
+- [ ] Frontend: Erfolgs-/Fehler-Toast nach Budget-Änderung

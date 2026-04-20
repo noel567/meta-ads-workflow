@@ -422,6 +422,57 @@ Antworte NUR mit validem JSON in diesem Format:
     return { success: true };
   }),
 
+  // Budget abrufen (Kampagnen-Ebene, da CBO aktiv)
+  getCampaignBudget: protectedProcedure
+    .input(z.object({ campaignId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const conn = await getMetaConnection(ctx.user.id);
+      const token = conn?.accessToken ?? META_TOKEN;
+      if (!token) throw new Error("Kein Meta Access Token");
+      const data = await metaFetch(`/${input.campaignId}`, {
+        fields: "id,name,daily_budget,lifetime_budget,budget_remaining,status,currency",
+      }, token);
+      return {
+        id: data.id,
+        name: data.name,
+        dailyBudgetCents: parseInt(data.daily_budget ?? "0"),
+        lifetimeBudgetCents: parseInt(data.lifetime_budget ?? "0"),
+        budgetRemainingCents: parseInt(data.budget_remaining ?? "0"),
+        status: data.status,
+        currency: data.currency ?? "CHF",
+        hasDailyBudget: !!data.daily_budget,
+      };
+    }),
+
+  // Budget anpassen (Kampagnen-Ebene)
+  updateCampaignBudget: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      newDailyBudgetCents: z.number().int().min(100), // Minimum 1 CHF (100 Cents)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const conn = await getMetaConnection(ctx.user.id);
+      const token = conn?.accessToken ?? META_TOKEN;
+      if (!token) throw new Error("Kein Meta Access Token");
+
+      // PATCH via form-encoded body
+      const url = new URL(`${META_BASE}/${input.campaignId}`);
+      url.searchParams.set("access_token", token);
+      const body = new URLSearchParams({
+        daily_budget: String(input.newDailyBudgetCents),
+      });
+      const res = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      });
+      const json = await res.json() as any;
+      if (!res.ok || json.error) {
+        throw new Error(json.error?.message ?? `Meta API Fehler: ${res.status}`);
+      }
+      return { success: true, campaignId: input.campaignId, newDailyBudgetCents: input.newDailyBudgetCents };
+    }),
+
   // Account-Übersicht
   getAccountOverview: protectedProcedure.query(async ({ ctx }) => {
     const conn = await getMetaConnection(ctx.user.id);
