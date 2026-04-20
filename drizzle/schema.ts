@@ -379,3 +379,69 @@ export const telegramSettings = mysqlTable("telegram_settings", {
 });
 export type TelegramSettings = typeof telegramSettings.$inferSelect;
 export type InsertTelegramSettings = typeof telegramSettings.$inferInsert;
+
+// ─── Meta Ads Analytics ───────────────────────────────────────────────────────
+
+export const metaAdInsights = mysqlTable("meta_ad_insights", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // Identifiers
+  campaignId: varchar("campaignId", { length: 64 }).notNull(),
+  campaignName: varchar("campaignName", { length: 255 }).notNull(),
+  adsetId: varchar("adsetId", { length: 64 }),
+  adsetName: varchar("adsetName", { length: 255 }),
+  adId: varchar("adId", { length: 64 }),
+  adName: varchar("adName", { length: 255 }),
+  level: mysqlEnum("level", ["account", "campaign", "adset", "ad"]).default("campaign").notNull(),
+  // KPIs
+  spend: float("spend").default(0),
+  impressions: bigint("impressions", { mode: "number" }).default(0),
+  clicks: bigint("clicks", { mode: "number" }).default(0),
+  reach: bigint("reach", { mode: "number" }).default(0),
+  ctr: float("ctr").default(0),
+  cpc: float("cpc").default(0),
+  cpm: float("cpm").default(0),
+  roas: float("roas").default(0),
+  purchases: float("purchases").default(0),
+  leads: float("leads").default(0),
+  costPerPurchase: float("costPerPurchase").default(0),
+  costPerLead: float("costPerLead").default(0),
+  frequency: float("frequency").default(0),
+  // Status
+  status: varchar("status", { length: 32 }),
+  objective: varchar("objective", { length: 64 }),
+  dailyBudget: float("dailyBudget"),
+  // Period
+  dateStart: varchar("dateStart", { length: 16 }).notNull(),
+  dateStop: varchar("dateStop", { length: 16 }).notNull(),
+  datePreset: varchar("datePreset", { length: 32 }),
+  // Raw
+  rawData: json("rawData"),
+  syncedAt: timestamp("syncedAt").defaultNow().notNull(),
+});
+
+export type MetaAdInsight = typeof metaAdInsights.$inferSelect;
+export type InsertMetaAdInsight = typeof metaAdInsights.$inferInsert;
+
+// KI-Analyse Ergebnisse (täglich)
+export const metaAiAnalyses = mysqlTable("meta_ai_analyses", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  analysisDate: varchar("analysisDate", { length: 16 }).notNull(), // YYYY-MM-DD
+  datePreset: varchar("datePreset", { length: 32 }).default("last_7d"),
+  // KI Output
+  summary: text("summary"),                    // Kurze Zusammenfassung
+  topPerformers: json("topPerformers"),         // Array von Top-Kampagnen
+  underperformers: json("underperformers"),     // Array von schwachen Kampagnen
+  budgetRecommendations: json("budgetRecommendations"), // Budget-Empfehlungen
+  actionItems: json("actionItems"),             // Konkrete To-Dos
+  insights: json("insights"),                  // Weitere Insights
+  overallScore: float("overallScore"),          // 0-10 Performance Score
+  totalSpend: float("totalSpend"),
+  totalRevenue: float("totalRevenue"),
+  avgRoas: float("avgRoas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MetaAiAnalysis = typeof metaAiAnalyses.$inferSelect;
+export type InsertMetaAiAnalysis = typeof metaAiAnalyses.$inferInsert;

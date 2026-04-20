@@ -36,6 +36,7 @@ import {
   Settings,
   Video,
   Send,
+  TrendingUp,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -52,6 +53,7 @@ const menuItems = [
   { icon: Users, label: "Konkurrenten", path: "/competitors" },
   { icon: Sparkles, label: "Batch Generator", path: "/batches" },
   { icon: Video, label: "Video Research", path: "/video-research" },
+  { icon: TrendingUp, label: "Meta Ads Analytics", path: "/meta-ads" },
   { icon: Send, label: "Telegram Bot", path: "/telegram" },
   { icon: BookOpen, label: "Transkripte", path: "/transcripts" },
   { icon: MonitorPlay, label: "Teleprompter", path: "/teleprompter" },

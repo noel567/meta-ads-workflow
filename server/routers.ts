@@ -22,6 +22,7 @@ import {
   getTelegramSettings, upsertTelegramSettings,
 } from "./db";
 import { runDailyScan, startScheduler, runDailyTelegramPost } from "./scheduler";
+import { metaInsightsRouter } from "./metaInsightsRouter";
 import { ENV } from "./_core/env";
 
 // ─── Meta API Helper ──────────────────────────────────────────────────────────
@@ -1461,6 +1462,7 @@ export const appRouter = router({
   hooks: hooksRouter,
   videoResearch: videoResearchRouter,
   telegram: telegramRouter,
+  metaInsights: metaInsightsRouter,
 });
 
 export type AppRouter = typeof appRouter;

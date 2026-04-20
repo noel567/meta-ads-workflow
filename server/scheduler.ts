@@ -4,6 +4,7 @@
  */
 
 import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor, getGoogleDriveConnection, updateAdBatch, createDocument, getTelegramSettings, createTelegramPost, updateTelegramPost } from "./db";
+import { saveInsights, saveAiAnalysis, getLatestAiAnalysis } from "./metaInsightsDb";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 
@@ -581,6 +582,16 @@ export function startScheduler(userId: number) {
       }
     }
 
+    // Meta Ads daily analysis at 08:00 UTC (10:00 CEST)
+    if (hour === 8 && minute < 5) {
+      console.log(`[Scheduler] Running daily Meta Ads analysis for user ${userId}...`);
+      try {
+        await runDailyMetaAnalysis(userId);
+        console.log(`[Scheduler] Daily Meta Ads analysis completed.`);
+      } catch (e) {
+        console.error(`[Scheduler] Daily Meta Ads analysis failed:`, e);
+      }
+    }
     // Telegram daily post: use configured posting time from DB settings
     try {
       const settings = await getTelegramSettings(userId);
@@ -621,4 +632,135 @@ export function stopScheduler() {
     schedulerInterval = null;
     console.log("[Scheduler] Stopped");
   }
+}
+
+// ─── Daily Meta Ads Analysis ──────────────────────────────────────────────────
+
+const META_BASE = "https://graph.facebook.com/v19.0";
+const META_ACCOUNT = "act_3372867833028082";
+
+async function metaFetchScheduler(path: string, params: Record<string, string> = {}, token: string) {
+  const url = new URL(`${META_BASE}${path}`);
+  url.searchParams.set("access_token", token);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`Meta API error: ${res.status}`);
+  return res.json() as Promise<any>;
+}
+
+export async function runDailyMetaAnalysis(userId: number) {
+  const token = process.env.META_ACCESS_TOKEN;
+  if (!token) {
+    console.log("[MetaAnalysis] No META_ACCESS_TOKEN configured, skipping.");
+    return;
+  }
+
+  const datePreset = "last_7d";
+
+  // 1. Insights abrufen
+  const insightsData = await metaFetchScheduler(`/${META_ACCOUNT}/insights`, {
+    fields: "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,cpm,reach,actions,date_start,date_stop",
+    date_preset: datePreset,
+    level: "campaign",
+    limit: "200",
+  }, token);
+
+  const rows = (insightsData.data ?? []).map((d: any) => {
+    const actions = d.actions ?? [];
+    const purchases = parseFloat(actions.find((a: any) => a.action_type === "purchase")?.value ?? "0");
+    const leads = parseFloat(actions.find((a: any) => a.action_type === "lead")?.value ?? "0");
+    const spend = parseFloat(d.spend ?? "0");
+    return {
+      userId,
+      campaignId: d.campaign_id ?? "account",
+      campaignName: d.campaign_name ?? "Account",
+      adsetId: null as string | null,
+      adsetName: null as string | null,
+      adId: null as string | null,
+      adName: null as string | null,
+      level: "campaign" as const,
+      spend,
+      impressions: parseInt(d.impressions ?? "0"),
+      clicks: parseInt(d.clicks ?? "0"),
+      reach: parseInt(d.reach ?? "0"),
+      ctr: parseFloat(d.ctr ?? "0"),
+      cpc: parseFloat(d.cpc ?? "0"),
+      cpm: parseFloat(d.cpm ?? "0"),
+      roas: 0,
+      purchases,
+      leads,
+      costPerPurchase: 0,
+      costPerLead: 0,
+      frequency: 0,
+      status: null as string | null,
+      objective: null as string | null,
+      dailyBudget: null as number | null,
+      dateStart: d.date_start,
+      dateStop: d.date_stop,
+      datePreset,
+      rawData: d,
+    };
+  });
+
+  if (rows.length === 0) {
+    console.log("[MetaAnalysis] No insights data available.");
+    return;
+  }
+
+  await saveInsights(userId, rows);
+
+  // 2. KI-Analyse
+  const totalSpend = rows.reduce((s: number, i: any) => s + i.spend, 0);
+  const dataStr = rows.map((i: any) =>
+    `"${i.campaignName}": CHF ${i.spend.toFixed(2)} spend, ${i.impressions.toLocaleString()} impressions, CTR ${i.ctr.toFixed(2)}%, CPC CHF ${i.cpc.toFixed(2)}`
+  ).join("\n");
+
+  const response = await invokeLLM({
+    messages: [
+      { role: "system", content: "Du bist ein Meta Ads Analyst. Antworte nur mit validem JSON." },
+      {
+        role: "user",
+        content: `Analysiere diese Meta Ads Daten (letzte 7 Tage, CHF):
+${dataStr}
+Gesamt: CHF ${totalSpend.toFixed(2)}
+
+JSON Format:
+{"summary":"...","overallScore":7.5,"topPerformers":[{"name":"...","reason":"...","action":"...","metric":"..."}],"underperformers":[{"name":"...","reason":"...","action":"...","metric":"..."}],"budgetRecommendations":[{"campaign":"...","currentBudget":0,"recommendedBudget":0,"reason":"...","priority":"high"}],"actionItems":[{"priority":"high","action":"...","campaign":"...","expectedImpact":"..."}],"insights":[{"title":"...","description":"...","type":"opportunity"}]}`,
+      },
+    ],
+  });
+
+  const content = response.choices[0]?.message?.content as string;
+  let parsed: any;
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+  } catch {
+    console.error("[MetaAnalysis] Failed to parse AI response");
+    return;
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  await saveAiAnalysis({
+    userId,
+    analysisDate: today,
+    datePreset,
+    summary: parsed.summary ?? "",
+    topPerformers: parsed.topPerformers ?? [],
+    underperformers: parsed.underperformers ?? [],
+    budgetRecommendations: parsed.budgetRecommendations ?? [],
+    actionItems: parsed.actionItems ?? [],
+    insights: parsed.insights ?? [],
+    overallScore: parsed.overallScore ?? 5,
+    totalSpend,
+    totalRevenue: 0,
+    avgRoas: 0,
+  });
+
+  await notifyOwner({
+    title: "📊 Tägliche Meta Ads Analyse",
+    content: `Score: ${parsed.overallScore}/10 | CHF ${totalSpend.toFixed(0)} spend | ${rows.length} Kampagnen analysiert\n\n${parsed.summary}`,
+  });
+
+  console.log(`[MetaAnalysis] Analysis saved for ${rows.length} campaigns, score: ${parsed.overallScore}`);
 }
