@@ -5,6 +5,7 @@
 
 import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor, getGoogleDriveConnection, updateAdBatch, createDocument, getTelegramSettings, createTelegramPost, updateTelegramPost } from "./db";
 import { saveInsights, saveAiAnalysis, getLatestAiAnalysis } from "./metaInsightsDb";
+import { runAllBudgetRules } from "./budgetRulesRouter";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 
@@ -590,6 +591,17 @@ export function startScheduler(userId: number) {
         console.log(`[Scheduler] Daily Meta Ads analysis completed.`);
       } catch (e) {
         console.error(`[Scheduler] Daily Meta Ads analysis failed:`, e);
+      }
+    }
+
+    // Budget-Regeln automatisch ausführen um 08:10 UTC (10:10 CEST)
+    if (hour === 8 && minute >= 10 && minute < 15) {
+      console.log(`[Scheduler] Running automated budget rules...`);
+      try {
+        await runAllBudgetRules();
+        console.log(`[Scheduler] Budget rules executed.`);
+      } catch (e) {
+        console.error(`[Scheduler] Budget rules execution failed:`, e);
       }
     }
 

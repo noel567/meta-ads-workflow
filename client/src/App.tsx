@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import VideoResearch from "./pages/VideoResearch";
 import TelegramBot from "./pages/TelegramBot";
 import MetaAdsDashboard from "./pages/MetaAdsDashboard";
+import BudgetRules from "./pages/BudgetRules";
 
 function Router() {
   return (
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/video-research" component={VideoResearch} />
       <Route path="/telegram" component={TelegramBot} />
       <Route path="/meta-ads" component={MetaAdsDashboard} />
+      <Route path="/budget-rules" component={BudgetRules} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

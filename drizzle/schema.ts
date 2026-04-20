@@ -458,3 +458,45 @@ export const adComments = mysqlTable("ad_comments", {
 });
 export type AdComment = typeof adComments.$inferSelect;
 export type InsertAdComment = typeof adComments.$inferInsert;
+
+// ─── Automatische Budget-Regeln ──────────────────────────────────────────────
+export const budgetRules = mysqlTable("budget_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  metric: varchar("metric", { length: 32 }).notNull(),        // cpl, ctr, cpc, spend, roas
+  condition: varchar("condition", { length: 8 }).notNull(),   // gt, lt, gte, lte
+  threshold: float("threshold").notNull(),
+  action: varchar("action", { length: 16 }).notNull(),        // increase, decrease, pause, activate
+  changePercent: float("changePercent"),
+  maxBudgetCents: int("maxBudgetCents"),
+  minBudgetCents: int("minBudgetCents"),
+  campaignId: varchar("campaignId", { length: 32 }),
+  campaignName: varchar("campaignName", { length: 256 }),
+  lookbackDays: int("lookbackDays").default(7).notNull(),
+  cooldownDays: int("cooldownDays").default(1).notNull(),
+  lastExecutedAt: timestamp("lastExecutedAt"),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type BudgetRule = typeof budgetRules.$inferSelect;
+export type InsertBudgetRule = typeof budgetRules.$inferInsert;
+
+export const ruleExecutions = mysqlTable("rule_executions", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: int("ruleId").notNull(),
+  ruleName: varchar("ruleName", { length: 128 }),
+  executedAt: timestamp("executedAt").defaultNow().notNull(),
+  triggered: boolean("triggered").notNull(),
+  campaignId: varchar("campaignId", { length: 32 }),
+  campaignName: varchar("campaignName", { length: 256 }),
+  metricValue: float("metricValue"),
+  oldBudgetCents: int("oldBudgetCents"),
+  newBudgetCents: int("newBudgetCents"),
+  reason: text("reason"),
+  success: boolean("success").default(true).notNull(),
+  errorMessage: text("errorMessage"),
+});
+export type RuleExecution = typeof ruleExecutions.$inferSelect;
+export type InsertRuleExecution = typeof ruleExecutions.$inferInsert;

@@ -259,3 +259,17 @@
 - [x] Frontend: Budget-Anpassen UI im Creative Detail Sheet (aktuelles Budget, Schnell-Buttons -20%/-10%/+10%/+20%/+50%, CHF-Eingabe)
 - [x] Frontend: Warnhinweis vor Budget-Änderung ("wird sofort in Meta übernommen")
 - [x] Frontend: Erfolgs-/Fehler-Toast nach Budget-Änderung + automatisches Budget-Refresh
+
+## Automatische Budget-Regeln (April 2026)
+- [x] Datenbank: budget_rules Tabelle (name, metric, condition, threshold, action, change_percent, campaign_id, active)
+- [x] Datenbank: rule_executions Tabelle (rule_id, executed_at, triggered, old_budget, new_budget, reason)
+- [x] Server: budgetRules.create, list, update, delete, toggle Procedures
+- [x] Server: budgetRules.runNow + runSingle Procedures (alle aktiven Regeln prüfen + ausführen)
+- [x] Server: Regel-Ausführungslogik (Meta API Insights abrufen → Bedingung prüfen → Budget anpassen)
+- [x] Scheduler: Tägliche Regelausführung um 10:10 Uhr CEST (08:10 UTC)
+- [x] Frontend: Budget-Regeln Seite (/budget-rules)
+- [x] Frontend: Regel-Ersteller (Metrik, Bedingung, Schwellenwert, Aktion, Kampagne)
+- [x] Frontend: Regel-Liste mit Toggle (aktiv/inaktiv) und Löschen
+- [x] Frontend: Ausführungsprotokoll (wann ausgelöst, was geändert, Begründung)
+- [x] Frontend: "Jetzt ausführen" Button für manuellen Test
+- [x] Sidebar-Navigation: Budget-Regeln Eintrag
