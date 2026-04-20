@@ -9,8 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import {
   RefreshCw, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Zap, Target, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight,
-  Lightbulb, ChevronRight, Loader2, Info
+  Lightbulb, ChevronRight, Loader2, Info, Play, Pause, Eye, MousePointer, Users
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
 const DATE_PRESETS = [
@@ -79,15 +80,101 @@ function PriorityBadge({ priority }: { priority: string }) {
   return <Badge className="bg-slate-500/20 text-slate-400 border-slate-500/30 text-xs">Niedrig</Badge>;
 }
 
+// ─── Creative Card ────────────────────────────────────────────────────────────
+function CreativeCard({ ad }: { ad: any }) {
+  const [expanded, setExpanded] = useState(false);
+  const ctrColor = ad.ctr >= 3 ? "text-green-400" : ad.ctr >= 1.5 ? "text-amber-400" : "text-red-400";
+  const cpcColor = ad.cpc <= 0.8 ? "text-green-400" : ad.cpc <= 1.5 ? "text-amber-400" : "text-red-400";
+
+  return (
+    <Card className="bg-slate-900 border-slate-800 hover:border-slate-700 transition-colors">
+      <CardContent className="p-0">
+        <div className="flex gap-0">
+          {/* Thumbnail */}
+          <div className="w-24 h-24 flex-shrink-0 rounded-l-lg overflow-hidden bg-slate-800">
+            {ad.thumbnailUrl ? (
+              <img src={ad.thumbnailUrl} alt={ad.adName} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Play className="w-6 h-6 text-slate-600" />
+              </div>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white truncate" title={ad.adName}>{ad.adName}</p>
+                <p className="text-xs text-slate-500 truncate">{ad.campaignName}</p>
+              </div>
+              <Badge className={ad.leads > 0 ? "bg-green-500/20 text-green-400 border-green-500/30 text-xs flex-shrink-0" : "bg-slate-700 text-slate-400 border-slate-600 text-xs flex-shrink-0"}>
+                {ad.leads > 0 ? `${ad.leads} Leads` : "Kein Lead"}
+              </Badge>
+            </div>
+
+            {/* KPIs */}
+            <div className="grid grid-cols-4 gap-2 mt-2">
+              <div className="text-center">
+                <p className="text-xs text-slate-500">Spend</p>
+                <p className="text-sm font-bold text-white">CHF {ad.spend.toFixed(0)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-slate-500">CTR</p>
+                <p className={`text-sm font-bold ${ctrColor}`}>{ad.ctr.toFixed(2)}%</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-slate-500">CPC</p>
+                <p className={`text-sm font-bold ${cpcColor}`}>CHF {ad.cpc.toFixed(2)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-slate-500">CPL</p>
+                <p className="text-sm font-bold text-white">{ad.costPerLead > 0 ? `CHF ${ad.costPerLead.toFixed(0)}` : "–"}</p>
+              </div>
+            </div>
+
+            {/* Expand */}
+            {ad.adText && (
+              <button onClick={() => setExpanded(!expanded)}
+                className="text-xs text-blue-400 hover:text-blue-300 mt-2 flex items-center gap-1">
+                {expanded ? "Weniger" : "Ad-Text anzeigen"}
+                <ChevronRight className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Expanded Ad Text */}
+        {expanded && ad.adText && (
+          <div className="px-3 pb-3 border-t border-slate-800 mt-0">
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed line-clamp-4">{ad.adText}</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function MetaAdsDashboard() {
   const [datePreset, setDatePreset] = useState("last_30d");
   const [isSyncing, setIsSyncing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [adSortBy, setAdSortBy] = useState<"spend" | "ctr" | "cpc" | "impressions" | "leads">("spend");
+  const [isAnalyzingAds, setIsAnalyzingAds] = useState(false);
+  const [adAnalysis, setAdAnalysis] = useState<any>(null);
 
   const utils = trpc.useUtils();
   const { data: analysis, isLoading: analysisLoading } = trpc.metaInsights.getLatestAnalysis.useQuery();
   const { data: insights, isLoading: insightsLoading } = trpc.metaInsights.getInsights.useQuery({ datePreset, level: "campaign" });
   const { data: account } = trpc.metaInsights.getAccountOverview.useQuery();
+  const { data: adInsights, isLoading: adInsightsLoading, refetch: refetchAds } = trpc.metaInsights.getAdInsights.useQuery(
+    { datePreset: datePreset as any, sortBy: adSortBy },
+    { enabled: false } // nur bei Bedarf laden
+  );
+  const analyzeAdsMutation = trpc.metaInsights.analyzeAds.useMutation({
+    onSuccess: (data) => { setAdAnalysis(data); toast.success("Creative-Analyse abgeschlossen"); },
+    onError: (e) => toast.error(e.message),
+  });
 
   const syncMutation = trpc.metaInsights.sync.useMutation({
     onSuccess: (data) => {
@@ -132,6 +219,13 @@ export default function MetaAdsDashboard() {
   const avgCpc = insights?.length ? insights.reduce((s, i) => s + (i.cpc ?? 0), 0) / insights.filter(i => i.cpc).length : 0;
 
   const topCampaigns = [...(insights ?? [])].sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0)).slice(0, 8);
+
+  const handleLoadAds = () => { refetchAds(); };
+  const handleAnalyzeAds = async () => {
+    setIsAnalyzingAds(true);
+    try { await analyzeAdsMutation.mutateAsync({ datePreset: datePreset as any }); }
+    finally { setIsAnalyzingAds(false); }
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -185,6 +279,15 @@ export default function MetaAdsDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Tabs: Kampagnen / Creatives */}
+      <Tabs defaultValue="campaigns" className="space-y-6">
+        <TabsList className="bg-slate-900 border border-slate-800">
+          <TabsTrigger value="campaigns" className="data-[state=active]:bg-slate-800">Kampagnen</TabsTrigger>
+          <TabsTrigger value="creatives" className="data-[state=active]:bg-slate-800">Creatives (Ad-Ebene)</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="campaigns" className="space-y-6">
 
       {/* KPI Cards */}
       {insights && insights.length > 0 && (
@@ -440,6 +543,142 @@ export default function MetaAdsDashboard() {
           )}
         </div>
       </div>
+
+        </TabsContent>{/* end campaigns tab */}
+
+        {/* ─── Creatives Tab ─────────────────────────────────────────────── */}
+        <TabsContent value="creatives" className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Creative Performance</h2>
+              <p className="text-xs text-muted-foreground">Einzelne Ads mit Thumbnail, CTR, CPC und Lead-Kosten</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={adSortBy} onValueChange={(v) => setAdSortBy(v as any)}>
+                <SelectTrigger className="w-40 bg-slate-900 border-slate-700 text-white text-xs">
+                  <SelectValue placeholder="Sortieren nach" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  <SelectItem value="spend" className="text-white text-xs">Nach Spend</SelectItem>
+                  <SelectItem value="ctr" className="text-white text-xs">Nach CTR</SelectItem>
+                  <SelectItem value="cpc" className="text-white text-xs">Nach CPC</SelectItem>
+                  <SelectItem value="leads" className="text-white text-xs">Nach Leads</SelectItem>
+                  <SelectItem value="impressions" className="text-white text-xs">Nach Impressionen</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={handleLoadAds} disabled={adInsightsLoading}
+                className="border-slate-700 text-white hover:bg-slate-800 text-xs">
+                {adInsightsLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                Laden
+              </Button>
+              <Button onClick={handleAnalyzeAds} disabled={isAnalyzingAds || !adInsights?.length}
+                className="bg-purple-600 hover:bg-purple-700 text-white text-xs">
+                {isAnalyzingAds ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
+                KI-Analyse
+              </Button>
+            </div>
+          </div>
+
+          {/* KI Creative-Analyse */}
+          {adAnalysis && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-slate-900 border-slate-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-white flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-green-400" /> Top Creatives
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {(adAnalysis.topCreatives ?? []).map((c: any, i: number) => (
+                    <div key={i} className="p-2 rounded bg-slate-800/50 border border-green-500/20">
+                      <p className="text-xs font-medium text-white truncate">{c.name}</p>
+                      <p className="text-xs text-green-400 mt-0.5">{c.action} · {c.reason}</p>
+                    </div>
+                  ))}
+                  {!(adAnalysis.topCreatives ?? []).length && <p className="text-xs text-muted-foreground">Keine Daten</p>}
+                </CardContent>
+              </Card>
+              <Card className="bg-slate-900 border-slate-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-white flex items-center gap-2">
+                    <TrendingDown className="w-4 h-4 text-red-400" /> Schwache Creatives
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {(adAnalysis.weakCreatives ?? []).map((c: any, i: number) => (
+                    <div key={i} className="p-2 rounded bg-slate-800/50 border border-red-500/20">
+                      <p className="text-xs font-medium text-white truncate">{c.name}</p>
+                      <p className="text-xs text-red-400 mt-0.5">{c.action} · {c.reason}</p>
+                    </div>
+                  ))}
+                  {!(adAnalysis.weakCreatives ?? []).length && <p className="text-xs text-muted-foreground">Keine Daten</p>}
+                </CardContent>
+              </Card>
+              <Card className="bg-slate-900 border-slate-800">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-white flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-amber-400" /> Zusammenfassung
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{adAnalysis.summary}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Creative Cards Grid */}
+          {!adInsights && !adInsightsLoading && (
+            <Card className="bg-slate-900 border-slate-800 border-dashed">
+              <CardContent className="p-12 text-center">
+                <Play className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <h3 className="text-base font-semibold text-white mb-2">Creative-Daten laden</h3>
+                <p className="text-muted-foreground text-sm mb-4">Klicke auf "Laden" um alle Ads mit Thumbnails und KPIs anzuzeigen.</p>
+                <Button onClick={handleLoadAds} className="bg-blue-600 hover:bg-blue-700">
+                  <RefreshCw className="w-4 h-4 mr-2" /> Jetzt laden
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {adInsightsLoading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="bg-slate-900 border-slate-800 animate-pulse">
+                  <CardContent className="p-3 flex gap-3">
+                    <div className="w-24 h-24 bg-slate-800 rounded" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 bg-slate-800 rounded w-3/4" />
+                      <div className="h-2 bg-slate-800 rounded w-1/2" />
+                      <div className="grid grid-cols-4 gap-1 mt-3">
+                        {[...Array(4)].map((_, j) => <div key={j} className="h-6 bg-slate-800 rounded" />)}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {adInsights && adInsights.length > 0 && (
+            <>
+              <p className="text-xs text-muted-foreground">{adInsights.length} Ads geladen · sortiert nach {adSortBy}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {adInsights.map((ad) => <CreativeCard key={ad.adId} ad={ad} />)}
+              </div>
+            </>
+          )}
+
+          {adInsights && adInsights.length === 0 && (
+            <Card className="bg-slate-900 border-slate-800">
+              <CardContent className="p-8 text-center">
+                <p className="text-muted-foreground">Keine Ad-Daten für diesen Zeitraum gefunden.</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+      </Tabs>
     </div>
   );
 }

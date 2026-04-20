@@ -225,3 +225,12 @@
 - [x] Tägliche automatische Analyse um 10:00 CEST (08:00 UTC) im Scheduler
 - [x] Telegram-Benachrichtigung nach täglicher Analyse
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Ad-Level Creative Analyse (April 2026)
+- [ ] Server: Ad-Level Insights von Meta API abrufen (CTR, CPC, Spend, Impressions, Conversions pro Ad)
+- [ ] Server: Creative-Thumbnails (Vorschaubild) pro Ad abrufen
+- [ ] Server: KI-Analyse auf Ad-Ebene (Top/Schwache Creatives, Empfehlungen)
+- [ ] Frontend: Ad-Level Tab im Meta Ads Dashboard
+- [ ] Frontend: Creative-Cards mit Thumbnail, Ad-Name, KPIs (CTR, CPC, Spend, Conversions)
+- [ ] Frontend: Sortierung nach Performance-Metrik (CTR, Spend, CPC)
+- [ ] Frontend: KI-Empfehlungen pro Creative (pausieren/skalieren/testen)

@@ -266,6 +266,155 @@ Antworte NUR mit validem JSON in diesem Format:
     return getAiAnalysisHistory(ctx.user.id, 10);
   }),
 
+  // Ad-Level Insights (mit Creative-Thumbnails)
+  getAdInsights: protectedProcedure
+    .input(z.object({
+      datePreset: z.enum(["today", "yesterday", "last_7d", "last_14d", "last_30d", "last_90d", "maximum"]).default("last_30d"),
+      sortBy: z.enum(["spend", "ctr", "cpc", "impressions", "leads"]).default("spend"),
+    }))
+    .query(async ({ ctx, input }) => {
+      const conn = await getMetaConnection(ctx.user.id);
+      const token = conn?.accessToken ?? META_TOKEN;
+      if (!token) throw new Error("Kein Meta Access Token konfiguriert");
+      const accountId = conn?.adAccountId ?? META_ACCOUNT;
+
+      // Ad-Level Insights
+      const insightsData = await metaFetch(`/${accountId}/insights`, {
+        fields: "ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,cpm,reach,actions,date_start,date_stop",
+        date_preset: input.datePreset,
+        level: "ad",
+        limit: "100",
+      }, token);
+
+      const ads = insightsData.data ?? [];
+
+      // Creative-Thumbnails parallel abrufen (max 20 um Rate-Limits zu vermeiden)
+      const adsWithCreatives = await Promise.all(
+        ads.slice(0, 50).map(async (ad: any) => {
+          const actions = extractActions(ad.actions);
+          const spend = parseFloat(ad.spend ?? "0");
+          const leads = actions.leads;
+          const costPerLead = leads > 0 ? spend / leads : 0;
+
+          let thumbnailUrl: string | null = null;
+          let adText: string | null = null;
+          let adTitle: string | null = null;
+          let creativeId: string | null = null;
+
+          try {
+            const adData = await metaFetch(`/${ad.ad_id}`, {
+              fields: "creative",
+            }, token);
+            creativeId = adData.creative?.id ?? null;
+
+            if (creativeId) {
+              const creative = await metaFetch(`/${creativeId}`, {
+                fields: "thumbnail_url,body,title",
+              }, token);
+              thumbnailUrl = creative.thumbnail_url ?? null;
+              adText = creative.body ?? null;
+              adTitle = creative.title ?? null;
+            }
+          } catch {
+            // Creative nicht verfügbar – kein Problem
+          }
+
+          return {
+            adId: ad.ad_id,
+            adName: ad.ad_name,
+            adsetName: ad.adset_name,
+            campaignName: ad.campaign_name,
+            spend,
+            impressions: parseInt(ad.impressions ?? "0"),
+            clicks: parseInt(ad.clicks ?? "0"),
+            ctr: parseFloat(ad.ctr ?? "0"),
+            cpc: parseFloat(ad.cpc ?? "0"),
+            cpm: parseFloat(ad.cpm ?? "0"),
+            reach: parseInt(ad.reach ?? "0"),
+            leads,
+            purchases: actions.purchases,
+            costPerLead,
+            thumbnailUrl,
+            adText,
+            adTitle,
+            creativeId,
+            dateStart: ad.date_start,
+            dateStop: ad.date_stop,
+          };
+        })
+      );
+
+      // Sortierung
+      const sorted = adsWithCreatives.sort((a, b) => {
+        if (input.sortBy === "ctr") return b.ctr - a.ctr;
+        if (input.sortBy === "cpc") return a.cpc - b.cpc; // niedrigster CPC = besser
+        if (input.sortBy === "impressions") return b.impressions - a.impressions;
+        if (input.sortBy === "leads") return b.leads - a.leads;
+        return b.spend - a.spend; // default: spend
+      });
+
+      return sorted;
+    }),
+
+  // KI-Analyse auf Ad-Ebene
+  analyzeAds: protectedProcedure
+    .input(z.object({
+      datePreset: z.enum(["today", "yesterday", "last_7d", "last_14d", "last_30d", "last_90d", "maximum"]).default("last_30d"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const conn = await getMetaConnection(ctx.user.id);
+      const token = conn?.accessToken ?? META_TOKEN;
+      if (!token) throw new Error("Kein Meta Access Token konfiguriert");
+      const accountId = conn?.adAccountId ?? META_ACCOUNT;
+
+      const insightsData = await metaFetch(`/${accountId}/insights`, {
+        fields: "ad_id,ad_name,adset_name,campaign_name,spend,impressions,clicks,ctr,cpc,actions",
+        date_preset: input.datePreset,
+        level: "ad",
+        limit: "50",
+      }, token);
+
+      const ads = (insightsData.data ?? []).map((ad: any) => {
+        const actions = extractActions(ad.actions);
+        const spend = parseFloat(ad.spend ?? "0");
+        return {
+          name: ad.ad_name,
+          campaign: ad.campaign_name,
+          adset: ad.adset_name,
+          spend,
+          impressions: parseInt(ad.impressions ?? "0"),
+          ctr: parseFloat(ad.ctr ?? "0"),
+          cpc: parseFloat(ad.cpc ?? "0"),
+          leads: actions.leads,
+          costPerLead: actions.leads > 0 ? spend / actions.leads : 0,
+        };
+      });
+
+      if (ads.length === 0) return { recommendations: [], summary: "Keine Ad-Daten verfügbar." };
+
+      const dataStr = ads.map((a: any) =>
+        `"${a.name}" (${a.campaign}): CHF ${a.spend.toFixed(2)} spend, CTR ${a.ctr.toFixed(2)}%, CPC CHF ${a.cpc.toFixed(2)}, ${a.leads} Leads`
+      ).join("\n");
+
+      const response = await invokeLLM({
+        messages: [
+          { role: "system", content: "Du bist ein Meta Ads Creative Analyst. Antworte nur mit validem JSON." },
+          {
+            role: "user",
+            content: `Analysiere diese Ads auf Creative-Ebene (${input.datePreset}, CHF):\n${dataStr}\n\nJSON Format:\n{"summary":"...","topCreatives":[{"name":"...","reason":"...","action":"skalieren","priority":"high"}],"weakCreatives":[{"name":"...","reason":"...","action":"pausieren","priority":"high"}],"recommendations":[{"ad":"...","recommendation":"...","expectedImpact":"..."}]}`,
+          },
+        ],
+      });
+
+      const content = response.choices[0]?.message?.content as string;
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        return JSON.parse(jsonMatch ? jsonMatch[0] : content);
+      } catch {
+        return { summary: content, recommendations: [], topCreatives: [], weakCreatives: [] };
+      }
+    }),
+
   // Account-Übersicht
   getAccountOverview: protectedProcedure.query(async ({ ctx }) => {
     const conn = await getMetaConnection(ctx.user.id);
