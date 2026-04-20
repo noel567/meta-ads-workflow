@@ -445,3 +445,16 @@ export const metaAiAnalyses = mysqlTable("meta_ai_analyses", {
 
 export type MetaAiAnalysis = typeof metaAiAnalyses.$inferSelect;
 export type InsertMetaAiAnalysis = typeof metaAiAnalyses.$inferInsert;
+
+// Ad Comments (Creative Detail Ansicht)
+export const adComments = mysqlTable("ad_comments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  adId: varchar("adId", { length: 64 }).notNull(),       // Meta Ad ID
+  adName: text("adName"),                                 // Ad-Name für Anzeige
+  campaignName: text("campaignName"),
+  text: text("text").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AdComment = typeof adComments.$inferSelect;
+export type InsertAdComment = typeof adComments.$inferInsert;

@@ -227,10 +227,21 @@
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
 
 ## Ad-Level Creative Analyse (April 2026)
-- [ ] Server: Ad-Level Insights von Meta API abrufen (CTR, CPC, Spend, Impressions, Conversions pro Ad)
-- [ ] Server: Creative-Thumbnails (Vorschaubild) pro Ad abrufen
-- [ ] Server: KI-Analyse auf Ad-Ebene (Top/Schwache Creatives, Empfehlungen)
-- [ ] Frontend: Ad-Level Tab im Meta Ads Dashboard
-- [ ] Frontend: Creative-Cards mit Thumbnail, Ad-Name, KPIs (CTR, CPC, Spend, Conversions)
-- [ ] Frontend: Sortierung nach Performance-Metrik (CTR, Spend, CPC)
-- [ ] Frontend: KI-Empfehlungen pro Creative (pausieren/skalieren/testen)
+- [x] Server: Ad-Level Insights von Meta API abrufen (CTR, CPC, Spend, Impressions, Conversions pro Ad)
+- [x] Server: Creative-Thumbnails (Vorschaubild) pro Ad abrufen
+- [x] Server: KI-Analyse auf Ad-Ebene (Top/Schwache Creatives, Empfehlungen)
+- [x] Frontend: Ad-Level Tab im Meta Ads Dashboard
+- [x] Frontend: Creative-Cards mit Thumbnail, Ad-Name, KPIs (CTR, CPC, Spend, CPL)
+- [x] Frontend: Sortierung nach Performance-Metrik (CTR, Spend, CPC, Leads, Impressionen)
+- [x] Frontend: KI-Empfehlungen pro Creative (pausieren/skalieren/testen)
+- [x] Frontend: Ad-Text expandierbar pro Creative-Card
+
+## Creative Detail Ansicht (April 2026)
+- [ ] Datenbank: ad_comments Tabelle (ad_id, user_id, text, created_at)
+- [ ] Server: adComments.add, adComments.list, adComments.delete Procedures
+- [ ] Frontend: Creative Detail Slide-over Panel (Sheet)
+- [ ] Frontend: Vollständige Ad-Vorschau (grosses Thumbnail + Video-Link)
+- [ ] Frontend: Alle KPIs in Detailansicht (Spend, CTR, CPC, CPL, Impressionen, Reichweite, Klicks)
+- [ ] Frontend: Vollständiger Ad-Text in Detailansicht
+- [ ] Frontend: Kommentar-Eingabe und Kommentar-Liste
+- [ ] Frontend: Kommentar löschen
