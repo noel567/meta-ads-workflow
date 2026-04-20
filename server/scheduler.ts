@@ -637,7 +637,7 @@ export function stopScheduler() {
 // ─── Daily Meta Ads Analysis ──────────────────────────────────────────────────
 
 const META_BASE = "https://graph.facebook.com/v19.0";
-const META_ACCOUNT = "act_3372867833028082";
+const META_ACCOUNT = "act_1093241318940799";
 
 async function metaFetchScheduler(path: string, params: Record<string, string> = {}, token: string) {
   const url = new URL(`${META_BASE}${path}`);

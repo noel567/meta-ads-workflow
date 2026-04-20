@@ -6,7 +6,7 @@ import { getMetaConnection } from "./db";
 
 const META_BASE = "https://graph.facebook.com/v19.0";
 const META_TOKEN = process.env.META_ACCESS_TOKEN;
-const META_ACCOUNT = "act_3372867833028082";
+const META_ACCOUNT = "act_1093241318940799";
 
 async function metaFetch(path: string, params: Record<string, string> = {}, token?: string) {
   const url = new URL(`${META_BASE}${path}`);
