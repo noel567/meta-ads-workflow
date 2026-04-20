@@ -25,6 +25,7 @@ import { runDailyScan, startScheduler, runDailyTelegramPost } from "./scheduler"
 import { metaInsightsRouter } from "./metaInsightsRouter";
 import { adCommentsRouter } from "./adCommentsRouter";
 import { budgetRulesRouter } from "./budgetRulesRouter";
+import { driveToMetaRouter } from "./driveToMetaRouter";
 import { ENV } from "./_core/env";
 
 // ─── Meta API Helper ──────────────────────────────────────────────────────────
@@ -1467,6 +1468,7 @@ export const appRouter = router({
   metaInsights: metaInsightsRouter,
   adComments: adCommentsRouter,
   budgetRules: budgetRulesRouter,
+  driveToMeta: driveToMetaRouter,
 });
 
 export type AppRouter = typeof appRouter;

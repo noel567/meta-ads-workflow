@@ -10,7 +10,7 @@ const GOOGLE_DRIVE_API = "https://www.googleapis.com/drive/v3";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
 const SCOPES = [
-  "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/drive",           // Vollzugriff: alle Dateien lesen + schreiben
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 

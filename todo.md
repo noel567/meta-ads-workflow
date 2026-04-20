@@ -280,3 +280,15 @@
 - [x] Nachrichtenformat: Emoji + Regelname + Kampagne + Metrik-Wert + Aktion + altes/neues Budget
 - [x] Nur bei triggered=true benachrichtigen (nicht bei nicht erfüllten Bedingungen)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Google Drive → Meta Video-Upload (April 2026)
+- [x] Server: driveToMeta.listVideos — Videos aus Drive-Ordner 1ywN_lDHCkgWT4uL5sr4pmyEMzAnpx1oe auflisten
+- [x] Server: driveToMeta.uploadToMeta — Video von Drive herunterladen und zu Meta advideos hochladen
+- [x] Server: driveToMeta.refreshStatus — Upload-Status eines Meta-Videos abrufen
+- [x] DB: drive_meta_uploads Tabelle (driveFileId, fileName, metaVideoId, status, createdAt)
+- [x] Frontend: DriveToMeta.tsx Seite (/drive-to-meta)
+- [x] Frontend: Video-Liste aus Drive-Ordner mit Name, Typ, Grösse, Datum
+- [x] Frontend: Upload-Button pro Video mit Lade-Status
+- [x] Frontend: Upload-Protokoll-Tabelle (hochgeladen, verarbeitet, Fehler)
+- [x] Sidebar-Navigation: "Drive → Meta" Eintrag (CloudUpload-Icon)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

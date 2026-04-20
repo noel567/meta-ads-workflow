@@ -500,3 +500,21 @@ export const ruleExecutions = mysqlTable("rule_executions", {
 });
 export type RuleExecution = typeof ruleExecutions.$inferSelect;
 export type InsertRuleExecution = typeof ruleExecutions.$inferInsert;
+
+// ─── Drive → Meta Video-Uploads ──────────────────────────────────────────────
+export const driveMetaUploads = mysqlTable("drive_meta_uploads", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  driveFileId: varchar("driveFileId", { length: 255 }).notNull(),
+  fileName: varchar("fileName", { length: 512 }).notNull(),
+  fileSizeBytes: bigint("fileSizeBytes", { mode: "number" }),
+  mimeType: varchar("mimeType", { length: 128 }),
+  metaVideoId: varchar("metaVideoId", { length: 64 }),
+  metaVideoTitle: varchar("metaVideoTitle", { length: 256 }),
+  status: mysqlEnum("status", ["pending", "downloading", "uploading", "processing", "ready", "error"]).default("pending").notNull(),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type DriveMetaUpload = typeof driveMetaUploads.$inferSelect;
+export type InsertDriveMetaUpload = typeof driveMetaUploads.$inferInsert;
