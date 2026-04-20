@@ -9,6 +9,16 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   RefreshCw, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Zap, Target, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight,
   Lightbulb, ChevronRight, Loader2, Play, MessageSquare, Trash2,
@@ -87,6 +97,7 @@ function CreativeDetailSheet({ ad, open, onClose }: { ad: any | null; open: bool
   const [commentText, setCommentText] = useState("");
   const [showBudgetEditor, setShowBudgetEditor] = useState(false);
   const [budgetInput, setBudgetInput] = useState("");
+  const [showBudgetConfirm, setShowBudgetConfirm] = useState(false);
   const utils = trpc.useUtils();
 
   // Budget abrufen (nur wenn campaignId vorhanden und Sheet offen)
@@ -110,7 +121,13 @@ function CreativeDetailSheet({ ad, open, onClose }: { ad: any | null; open: bool
     const val = parseFloat(budgetInput);
     if (isNaN(val) || val < 1) { toast.error("Mindestbudget: CHF 1.00"); return; }
     if (!ad?.campaignId) { toast.error("Keine Kampagnen-ID verfügbar"); return; }
-    updateBudget.mutate({ campaignId: ad.campaignId, newDailyBudgetCents: Math.round(val * 100) });
+    setShowBudgetConfirm(true);
+  };
+
+  const handleBudgetConfirmed = () => {
+    const val = parseFloat(budgetInput);
+    updateBudget.mutate({ campaignId: ad!.campaignId, newDailyBudgetCents: Math.round(val * 100) });
+    setShowBudgetConfirm(false);
   };
 
   const { data: comments, isLoading: commentsLoading } = trpc.adComments.list.useQuery(
@@ -149,7 +166,35 @@ function CreativeDetailSheet({ ad, open, onClose }: { ad: any | null; open: bool
     });
   };
 
+  const budgetVal = parseFloat(budgetInput);
+  const currentBudgetChf = budgetData ? (budgetData.dailyBudgetCents / 100).toFixed(2) : "–";
+
   return (
+    <>
+    {/* Bestätigungs-Dialog */}
+    <AlertDialog open={showBudgetConfirm} onOpenChange={setShowBudgetConfirm}>
+      <AlertDialogContent className="bg-slate-900 border-slate-700">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-white">Budget wirklich ändern?</AlertDialogTitle>
+          <AlertDialogDescription className="text-slate-400">
+            Das Tagesbudget der Kampagne <span className="text-white font-medium">{ad?.campaignName}</span> wird von{" "}
+            <span className="text-white font-medium">CHF {currentBudgetChf}</span> auf{" "}
+            <span className="text-green-400 font-bold">CHF {isNaN(budgetVal) ? "–" : budgetVal.toFixed(2)}</span> geändert.
+            <br /><br />
+            Diese Änderung wird <span className="text-amber-400 font-medium">sofort in Meta Ads Manager</span> übernommen.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="border-slate-700 text-slate-300">Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleBudgetConfirmed}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            Ja, Budget ändern
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent side="right" className="w-full sm:max-w-2xl bg-slate-950 border-slate-800 overflow-y-auto p-0">
         <div className="flex flex-col h-full">
@@ -433,6 +478,7 @@ function CreativeDetailSheet({ ad, open, onClose }: { ad: any | null; open: bool
         </div>
       </SheetContent>
     </Sheet>
+    </>
   );
 }
 

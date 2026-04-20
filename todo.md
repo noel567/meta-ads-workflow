@@ -254,8 +254,8 @@
 - [x] Server: sendCreativeReport Procedure im metaInsightsRouter
 
 ## Budget-Anpassen in Creative-Detailansicht (April 2026)
-- [ ] Server: metaInsights.updateAdsetBudget Procedure (Meta API PATCH /adset_id mit daily_budget)
-- [ ] Server: metaInsights.getAdsetBudget Procedure (aktuelles Budget abrufen)
-- [ ] Frontend: Budget-Anpassen UI im Creative Detail Sheet (aktuelles Budget anzeigen, Eingabefeld, +/- Buttons)
-- [ ] Frontend: Bestätigungs-Dialog vor Budget-Änderung
-- [ ] Frontend: Erfolgs-/Fehler-Toast nach Budget-Änderung
+- [x] Server: metaInsights.updateCampaignBudget Procedure (Meta API POST /{campaignId} mit daily_budget in Cents)
+- [x] Server: metaInsights.getCampaignBudget Procedure (aktuelles Budget + Verbleibend abrufen)
+- [x] Frontend: Budget-Anpassen UI im Creative Detail Sheet (aktuelles Budget, Schnell-Buttons -20%/-10%/+10%/+20%/+50%, CHF-Eingabe)
+- [x] Frontend: Warnhinweis vor Budget-Änderung ("wird sofort in Meta übernommen")
+- [x] Frontend: Erfolgs-/Fehler-Toast nach Budget-Änderung + automatisches Budget-Refresh
