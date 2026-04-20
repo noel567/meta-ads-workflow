@@ -245,3 +245,10 @@
 - [x] Frontend: Vollständiger Ad-Text in Detailansicht (nicht abgeschnitten)
 - [x] Frontend: Kommentar-Eingabe mit Textarea + Speichern-Button
 - [x] Frontend: Kommentar-Liste mit Datum + Löschen (hover)
+
+## Täglicher Telegram Creative-Report (April 2026)
+- [x] Scheduler: runDailyCreativeReport Funktion (Meta API → Top-3/Flop-3 → Telegram)
+- [x] Formatierung: Emoji-reicher Telegram-Report mit Ad-Name, CTR, CPC, Spend, Leads
+- [x] Cron-Job: täglich 10:05 Uhr CEST (nach Meta-Analyse um 10:00)
+- [x] Frontend: "Creative Report" Button in Telegram-Seite (manueller Trigger)
+- [x] Server: sendCreativeReport Procedure im metaInsightsRouter

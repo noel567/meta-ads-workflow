@@ -592,6 +592,17 @@ export function startScheduler(userId: number) {
         console.error(`[Scheduler] Daily Meta Ads analysis failed:`, e);
       }
     }
+
+    // Creative Report at 08:05 UTC (10:05 CEST) – after Meta analysis
+    if (hour === 8 && minute >= 5 && minute < 10) {
+      console.log(`[Scheduler] Running daily Creative Report...`);
+      try {
+        await runDailyCreativeReport();
+        console.log(`[Scheduler] Daily Creative Report sent.`);
+      } catch (e) {
+        console.error(`[Scheduler] Daily Creative Report failed:`, e);
+      }
+    }
     // Telegram daily post: use configured posting time from DB settings
     try {
       const settings = await getTelegramSettings(userId);
@@ -631,6 +642,104 @@ export function stopScheduler() {
     clearInterval(schedulerInterval);
     schedulerInterval = null;
     console.log("[Scheduler] Stopped");
+  }
+}
+
+// ─── Daily Creative Report (Telegram) ──────────────────────────────────────────
+
+export async function runDailyCreativeReport() {
+  const token = process.env.META_ACCESS_TOKEN;
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!token || !botToken || !chatId) {
+    console.log("[CreativeReport] Missing META_ACCESS_TOKEN, TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID – skipping.");
+    return;
+  }
+
+  const today = new Date();
+  const dateStr = today.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  // 1. Ad-Level Insights abrufen (letzte 7 Tage)
+  const insightsUrl = new URL(`${META_BASE}/${META_ACCOUNT}/insights`);
+  insightsUrl.searchParams.set("access_token", token);
+  insightsUrl.searchParams.set("level", "ad");
+  insightsUrl.searchParams.set("date_preset", "last_7d");
+  insightsUrl.searchParams.set("fields", "ad_id,ad_name,campaign_name,spend,impressions,clicks,ctr,cpc,reach,actions");
+  insightsUrl.searchParams.set("limit", "100");
+
+  const insightsRes = await fetch(insightsUrl.toString());
+  const insightsData = await insightsRes.json() as any;
+  const ads: any[] = insightsData.data ?? [];
+
+  if (ads.length === 0) {
+    console.log("[CreativeReport] No ad-level data available.");
+    return;
+  }
+
+  // 2. Ads aufbereiten
+  const processed = ads.map((ad: any) => {
+    const actions = ad.actions ?? [];
+    const leads = parseFloat(actions.find((a: any) => a.action_type === "lead")?.value ?? "0");
+    const spend = parseFloat(ad.spend ?? "0");
+    const clicks = parseInt(ad.clicks ?? "0");
+    const ctr = parseFloat(ad.ctr ?? "0");
+    const cpc = parseFloat(ad.cpc ?? "0");
+    const cpl = leads > 0 ? spend / leads : 9999;
+    return { adName: ad.ad_name ?? "Unbekannt", campaignName: ad.campaign_name ?? "", spend, clicks, ctr, cpc, leads, cpl };
+  }).filter((ad: any) => ad.spend > 0);
+
+  if (processed.length === 0) {
+    console.log("[CreativeReport] No ads with spend found.");
+    return;
+  }
+
+  // 3. Top-3 (höchste CTR) und Flop-3 (niedrigste CTR mit Mindest-Spend)
+  const sorted = [...processed].sort((a: any, b: any) => b.ctr - a.ctr);
+  const top3 = sorted.slice(0, 3);
+  const flop3 = [...processed]
+    .filter((ad: any) => ad.spend >= 5)
+    .sort((a: any, b: any) => a.ctr - b.ctr)
+    .slice(0, 3);
+
+  // 4. Telegram-Nachricht formatieren
+  const formatAd = (ad: any, rank: number, isTop: boolean) => {
+    const emoji = isTop ? ["🥇", "🥈", "🥉"][rank] : ["🔴", "🟠", "🟡"][rank];
+    const name = ad.adName.length > 35 ? ad.adName.slice(0, 32) + "..." : ad.adName;
+    const action = isTop
+      ? (ad.ctr > 3 ? "→ Budget erhöhen" : "→ Weiter beobachten")
+      : (ad.spend > 50 ? "→ Pausieren" : "→ Anpassen oder testen");
+    return `${emoji} <b>${name}</b>\nCTR: ${ad.ctr.toFixed(2)}% | CPC: CHF ${ad.cpc.toFixed(2)} | Spend: CHF ${ad.spend.toFixed(0)}${ad.leads > 0 ? ` | Leads: ${ad.leads}` : ""}\n<i>${action}</i>`;
+  };
+
+  const totalSpend = processed.reduce((s: number, a: any) => s + a.spend, 0);
+  const avgCtr = processed.reduce((s: number, a: any) => s + a.ctr, 0) / processed.length;
+
+  const message = [
+    `📊 <b>Daily Creative Report – ${dateStr}</b>`,
+    ``,
+    `💰 Total Spend (7d): <b>CHF ${totalSpend.toFixed(0)}</b>  |  Ø CTR: <b>${avgCtr.toFixed(2)}%</b>`,
+    ``,
+    `🏆 <b>Top 3 Creatives</b>`,
+    ...top3.map((ad: any, i: number) => formatAd(ad, i, true)),
+    ``,
+    `⚠️ <b>Flop 3 Creatives</b>`,
+    ...flop3.map((ad: any, i: number) => formatAd(ad, i, false)),
+    ``,
+    `💡 <i>Top Creatives skalieren, Flops pausieren oder testen.</i>`,
+  ].join("\n");
+
+  // 5. Senden
+  const sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: "HTML" }),
+  });
+  const sendData = await sendRes.json() as any;
+  if (sendData.ok) {
+    console.log(`[CreativeReport] Daily creative report sent (message_id: ${sendData.result?.message_id})`);
+  } else {
+    throw new Error(`[CreativeReport] Telegram send failed: ${sendData.description}`);
   }
 }
 

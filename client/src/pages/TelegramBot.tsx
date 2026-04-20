@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Send, Sparkles, Trash2, RefreshCw, Settings, CheckCircle2,
-  XCircle, Clock, Image as ImageIcon, MessageSquare, Zap
+  XCircle, Clock, Image as ImageIcon, MessageSquare, Zap, BarChart2
 } from "lucide-react";
 
 const CONTENT_TYPE_LABELS: Record<string, string> = {
@@ -105,6 +105,11 @@ export default function TelegramBot() {
     onError: (e) => toast.error(`❌ Verbindung fehlgeschlagen: ${e.message}`),
   });
 
+  const sendCreativeReport = trpc.metaInsights.sendCreativeReport.useMutation({
+    onSuccess: () => toast.success("📊 Creative Report wurde an @Manuseasy gesendet!"),
+    onError: (e) => toast.error(`❌ Report fehlgeschlagen: ${e.message}`),
+  });
+
   const runDailyPost = trpc.telegram.runDailyPost.useMutation({
     onSuccess: (d: any) => {
       utils.telegram.getPosts.invalidate();
@@ -134,6 +139,10 @@ export default function TelegramBot() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => sendCreativeReport.mutate()} disabled={sendCreativeReport.isPending}>
+            <BarChart2 className="w-4 h-4 mr-1" />
+            {sendCreativeReport.isPending ? "Sendet..." : "Creative Report"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => testConnection.mutate()} disabled={testConnection.isPending}>
             <Zap className="w-4 h-4 mr-1" />
             {testConnection.isPending ? "Teste..." : "Bot testen"}

@@ -415,6 +415,13 @@ Antworte NUR mit validem JSON in diesem Format:
       }
     }),
 
+  // Creative Report manuell senden
+  sendCreativeReport: protectedProcedure.mutation(async () => {
+    const { runDailyCreativeReport } = await import("./scheduler");
+    await runDailyCreativeReport();
+    return { success: true };
+  }),
+
   // Account-Übersicht
   getAccountOverview: protectedProcedure.query(async ({ ctx }) => {
     const conn = await getMetaConnection(ctx.user.id);
