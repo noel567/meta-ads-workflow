@@ -559,20 +559,21 @@ const googleDriveRouter = router({
     return { id: conn.id, rootFolderName: conn.rootFolderName, isActive: conn.isActive, updatedAt: conn.updatedAt, connectedEmail: (conn as any).connectedEmail ?? null };
   }),
   getAuthUrl: protectedProcedure
-    .input(z.object({ origin: z.string() }))
+    .input(z.object({ origin: z.string(), returnPath: z.string().optional() }))
     .query(({ input }) => {
       const redirectUri = `${input.origin}/api/google/callback`;
+      const returnPath = input.returnPath ?? "/settings";
       const params = new URLSearchParams({
         client_id: ENV.googleClientId,
         redirect_uri: redirectUri,
         response_type: "code",
         scope: [
-          "https://www.googleapis.com/auth/drive",           // Vollzugriff: alle Dateien lesen + schreiben
+          "https://www.googleapis.com/auth/drive",
           "https://www.googleapis.com/auth/userinfo.email",
         ].join(" "),
         access_type: "offline",
         prompt: "consent",
-        state: Buffer.from(JSON.stringify({ ts: Date.now() })).toString("base64"),
+        state: Buffer.from(JSON.stringify({ ts: Date.now(), returnPath })).toString("base64"),
       });
       return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` };
     }),

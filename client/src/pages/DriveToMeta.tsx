@@ -73,7 +73,7 @@ export default function DriveToMeta() {
   });
 
   const { data: authUrlData } = trpc.googleDrive.getAuthUrl.useQuery(
-    { origin: typeof window !== "undefined" ? window.location.origin : "" },
+    { origin: typeof window !== "undefined" ? window.location.origin : "", returnPath: "/drive-to-meta" },
   );
 
   const disconnectMutation = trpc.googleDrive.disconnect.useMutation({

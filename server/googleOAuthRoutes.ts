@@ -8,7 +8,6 @@ import { exchangeCodeForTokens } from "./googleDriveOAuth";
 import { upsertGoogleDriveConnection } from "./db";
 import { ENV } from "./_core/env";
 import { sdk } from "./_core/sdk";
-import { COOKIE_NAME } from "../shared/const";
 
 function getRedirectUri(req: Request): string {
   // Use GOOGLE_REDIRECT_URI env var if set (for production/published app)
@@ -28,14 +27,16 @@ export function registerGoogleOAuthRoutes(app: Express): void {
     }
 
     const redirectUri = getRedirectUri(req);
-    const state = Buffer.from(JSON.stringify({ ts: Date.now() })).toString("base64");
+    // Encode returnPath in state so callback can redirect back to the right page
+    const returnPath = (req.query.returnPath as string | undefined) ?? "/settings";
+    const state = Buffer.from(JSON.stringify({ ts: Date.now(), returnPath })).toString("base64");
 
     const params = new URLSearchParams({
       client_id: ENV.googleClientId,
       redirect_uri: redirectUri,
       response_type: "code",
       scope: [
-        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/userinfo.email",
       ].join(" "),
       access_type: "offline",
@@ -48,10 +49,21 @@ export function registerGoogleOAuthRoutes(app: Express): void {
 
   // ── Step 2: Handle callback from Google ─────────────────────────────────────
   app.get("/api/google/callback", async (req: Request, res: Response) => {
-    const { code, error } = req.query as { code?: string; error?: string };
+    const { code, error, state } = req.query as { code?: string; error?: string; state?: string };
+
+    // Parse returnPath from state
+    let returnPath = "/settings";
+    if (state) {
+      try {
+        const parsed = JSON.parse(Buffer.from(state, "base64").toString("utf-8"));
+        if (parsed.returnPath) returnPath = parsed.returnPath;
+      } catch {
+        // ignore malformed state
+      }
+    }
 
     if (error || !code) {
-      res.redirect(`/settings?google_error=${encodeURIComponent(error ?? "no_code")}`);
+      res.redirect(`${returnPath}?google_error=${encodeURIComponent(error ?? "no_code")}`);
       return;
     }
 
@@ -61,11 +73,11 @@ export function registerGoogleOAuthRoutes(app: Express): void {
       try {
         user = await sdk.authenticateRequest(req);
       } catch {
-        res.redirect("/settings?google_error=not_authenticated");
+        res.redirect(`${returnPath}?google_error=not_authenticated`);
         return;
       }
       if (!user) {
-        res.redirect("/settings?google_error=invalid_session");
+        res.redirect(`${returnPath}?google_error=invalid_session`);
         return;
       }
 
@@ -83,11 +95,11 @@ export function registerGoogleOAuthRoutes(app: Express): void {
         rootFolderName: "Easy Signals Ads",
       });
 
-      res.redirect("/settings?google_connected=true");
+      res.redirect(`${returnPath}?google_connected=true`);
     } catch (err) {
       console.error("[Google OAuth] Callback error:", err);
       const msg = err instanceof Error ? err.message : "unknown_error";
-      res.redirect(`/settings?google_error=${encodeURIComponent(msg)}`);
+      res.redirect(`${returnPath}?google_error=${encodeURIComponent(msg)}`);
     }
   });
 }
