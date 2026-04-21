@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type PostType = "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap";
+type PostType = "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap" | "quote";
 
 const POST_TYPE_CONFIG: Record<PostType, { label: string; emoji: string; defaultTime: string; description: string }> = {
   mindset: {
@@ -60,9 +60,15 @@ const POST_TYPE_CONFIG: Record<PostType, { label: string; emoji: string; default
     defaultTime: "20:00",
     description: "Abend-Zusammenfassung",
   },
+  quote: {
+    label: "Quote of the Day",
+    emoji: "💬",
+    defaultTime: "09:00",
+    description: "Tägliches Trading-Zitat (vollautomatisch)",
+  },
 };
 
-const POST_TYPES: PostType[] = ["mindset", "recap", "social_proof", "scarcity", "evening_recap"];
+const POST_TYPES: PostType[] = ["mindset", "recap", "social_proof", "scarcity", "evening_recap", "quote"];
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
@@ -261,6 +267,7 @@ function SettingsPanel() {
       timeSocialProof: settingsRef.timeSocialProof ?? "13:00",
       timeScarcity: settingsRef.timeScarcity ?? "17:00",
       timeEveningRecap: settingsRef.timeEveningRecap ?? "20:00",
+      timeQuote: (settingsRef as any).timeQuote ?? "09:00",
     });
     setInitDone(true);
   }
@@ -308,6 +315,7 @@ function SettingsPanel() {
     { key: "autoSendSocialProof", label: "Social Proof", emoji: "🏆", timeKey: "timeSocialProof", description: "Community-Erfolge" },
     { key: "autoSendScarcity", label: "Scarcity / CTA", emoji: "⚡", timeKey: "timeScarcity", description: "Verknappung & CTA" },
     { key: "autoSendEveningRecap", label: "Evening Recap", emoji: "🌙", timeKey: "timeEveningRecap", description: "Abend-Zusammenfassung" },
+    { key: "autoSendQuote", label: "Quote of the Day", emoji: "💬", timeKey: "timeQuote", description: "Tägliches Trading-Zitat" },
   ] as const;
 
   return (

@@ -537,7 +537,7 @@ export type InsertApiKey = typeof apiKeys.$inferInsert;
 export const contentPosts = mysqlTable("content_posts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  type: mysqlEnum("type", ["mindset", "recap", "social_proof", "scarcity", "evening_recap"]).notNull(),
+  type: mysqlEnum("type", ["mindset", "recap", "social_proof", "scarcity", "evening_recap", "quote"]).notNull(),
   text: text("text").notNull(),
   scheduledAt: timestamp("scheduledAt").notNull(),
   sentAt: timestamp("sentAt"),
@@ -557,11 +557,13 @@ export const contentBotSettings = mysqlTable("content_bot_settings", {
   autoSendSocialProof: boolean("autoSendSocialProof").default(false).notNull(),
   autoSendScarcity: boolean("autoSendScarcity").default(false).notNull(),
   autoSendEveningRecap: boolean("autoSendEveningRecap").default(false).notNull(),
+  autoSendQuote: boolean("autoSendQuote").default(true).notNull(),
   timeMindset: varchar("timeMindset", { length: 5 }).default("07:30").notNull(),
   timeRecap: varchar("timeRecap", { length: 5 }).default("10:00").notNull(),
   timeSocialProof: varchar("timeSocialProof", { length: 5 }).default("13:00").notNull(),
   timeScarcity: varchar("timeScarcity", { length: 5 }).default("17:00").notNull(),
   timeEveningRecap: varchar("timeEveningRecap", { length: 5 }).default("20:00").notNull(),
+  timeQuote: varchar("timeQuote", { length: 5 }).default("09:00").notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 export type ContentBotSettings = typeof contentBotSettings.$inferSelect;

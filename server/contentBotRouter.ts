@@ -6,7 +6,7 @@ import { contentPosts, contentBotSettings } from "../drizzle/schema";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
 
 // --- Types ---
-type PostType = "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap";
+type PostType = "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap" | "quote";
 
 // --- Telegram Helper ---
 async function sendTelegramMessage(text: string): Promise<string | null> {
@@ -35,49 +35,78 @@ function getSystemPrompt(): string {
 Du schreibst Telegram-Posts für den EasySignals Free Channel.
 
 STIL-REGELN (strikt einhalten):
-- Jeder Gedanke bekommt eine eigene Zeile (kurze Absätze, kein Fliesstext)
+- Sprache: Hochdeutsch (kein Schweizerdeutsch, kein Dialekt)
+- Jeder Gedanke bekommt eine eigene Zeile (kurze Absätze, kein Fließtext)
 - Direkte Ansprache: "du" / "ihr"
-- Gelegentlich Schweizerdeutsch: "Hoi", "isch", "üsi", "CHF", "gäll"
-- Emojis gezielt: 📈 (Wachstum), 🔥 (Erfolg), ✅ (TP Hit), 💰 (Profit), 🇨🇭 (Schweiz), ⚡ (Energie), 💡 (Tipp)
+- Emojis gezielt einsetzen: 📈 (Wachstum), 🔥 (Erfolg), ✅ (TP Hit), 💰 (Profit), ⚡ (Energie), 💡 (Tipp), 🎯 (Ziel)
 - Keine langen Textblöcke
 - Authentisch, nicht übertrieben werblich
 - Transparenz: auch Verluste werden ehrlich kommuniziert
-- "Wir spielen das langfristige Game" als Mantra
-- Maximal 200 Wörter pro Post`;
+- "Wir spielen das langfristige Spiel" als Mantra
+- Maximal 200 Wörter pro Post
+- Satzzeichen korrekt (deutsche Anführungszeichen „“, kein Apostroph für Genitiv)`;
 }
 
 function getUserPrompt(type: PostType): string {
-  const today = new Date().toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long" });
+  const today = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
   switch (type) {
     case "mindset":
-      return `Schreibe einen Mindset/Motivations-Post für heute (${today}).
-Thema: Trading-Psychologie, Geduld, langfristiges Denken, oder ein persönliches Learning von Livio.
-Authentisch, ehrlich, nicht zu werblich. Baue Community-Gefühl auf.`;
+      return `Schreibe einen Mindset- und Motivations-Post für heute (${today}).
+Thema: Trading-Psychologie, Geduld, langfristiges Denken oder ein persönliches Learning von Livio.
+Ton: authentisch, ehrlich, nicht werblich. Baue ein Gemeinschaftsgefühl auf.
+Sprache: Hochdeutsch.
+Format: Kurze Absätze, jeder Gedanke in einer eigenen Zeile, 2–4 Emojis.`;
 
     case "recap":
-      return `Schreibe einen Morning-Recap/Marktausblick Post für heute (${today}).
+      return `Schreibe einen Morning-Recap und Marktausblick für heute (${today}).
 Thema: Kurzer Ausblick auf den heutigen Handelstag, XAUUSD (Gold) Marktlage, was heute wichtig ist.
-Zeige Expertise ohne konkrete Signale zu geben (die kommen in die VIP-Gruppe).
-Erwähne, dass VIP-Mitglieder heute wieder profitieren werden.`;
+Zeige Expertise, ohne konkrete Signale zu nennen (diese gehen in die VIP-Gruppe).
+Erwähne, dass VIP-Mitglieder heute wieder von den Signalen profitieren werden.
+Sprache: Hochdeutsch.
+Format: Kurze Absätze, 2–4 Emojis, klarer Abschluss mit CTA.`;
 
     case "social_proof":
-      return `Schreibe einen Social-Proof Post für heute (${today}).
-Thema: Community-Erfolge, Mitglieder die profitiert haben, oder ein allgemeines Statement über die Performance.
-Nutze Verknappung: Erwähne, dass die VIP-Gruppe limitiert ist.
-Füge einen Call-to-Action ein: @Noel_EasySignals kontaktieren für VIP-Zugang.`;
+      return `Schreibe einen Social-Proof-Post für heute (${today}).
+Thema: Erfolge der Community, Mitglieder die profitiert haben, oder ein allgemeines Statement zur Performance.
+Erwähne, dass die VIP-Gruppe limitierte Plätze hat.
+Call-to-Action: @Noel_EasySignals kontaktieren für VIP-Zugang.
+Sprache: Hochdeutsch.
+Format: Kurze Absätze, 2–4 Emojis, abschließender CTA.`;
 
     case "scarcity":
-      return `Schreibe einen Scarcity/CTA Post für heute (${today}).
-Thema: Limitierte Plätze in der VIP-Gruppe oder im LAT-System (automatisches Trading).
-Erzeuge Dringlichkeit: Zeitdruck, begrenzte Plätze.
-CTA: @Noel_EasySignals kontaktieren.
-Erwähne: VIP-Gruppe ist 100% kostenlos (finanziert durch Broker-Partnerschaft mit IronFX).`;
+      return `Schreibe einen Scarcity- und CTA-Post für heute (${today}).
+Thema: Begrenzte Plätze in der VIP-Gruppe oder im LAT-System (automatisiertes Trading).
+Erzeuge Dringlichkeit durch Zeitdruck und begrenzte Verfügbarkeit.
+Call-to-Action: @Noel_EasySignals kontaktieren.
+Hinweis: Die VIP-Gruppe ist 100% kostenlos (finanziert durch die Broker-Partnerschaft mit IronFX).
+Sprache: Hochdeutsch.
+Format: Kurze Absätze, 2–3 Emojis, klarer CTA am Ende.`;
 
     case "evening_recap":
-      return `Schreibe einen Abend-Recap Post für heute (${today}).
+      return `Schreibe einen Abend-Recap für heute (${today}).
 Thema: Zusammenfassung des heutigen Handelstages, Dank an die Community, Ausblick auf morgen.
-Positiver Abschluss, auch wenn es ein schwieriger Tag war (Transparenz).
-Erwähne die morgigen Möglichkeiten.`;
+Positiver Abschluss – auch bei einem schwierigen Tag (Transparenz ist wichtig).
+Erwähne die Möglichkeiten von morgen.
+Sprache: Hochdeutsch.
+Format: Kurze Absätze, 2–4 Emojis, warmer Abschluss.`;
+
+    case "quote":
+      return `Erstelle einen „Quote of the Day“-Post für die EasySignals Telegram-Gruppe.
+Wähle ein bekanntes, inspirierendes Zitat von einem berühmten Trader, Investor oder Unternehmer (z.B. Warren Buffett, Paul Tudor Jones, Jesse Livermore, George Soros, Ray Dalio, Marty Schwartz, Ed Seykota, Mark Douglas).
+Das Zitat soll auf Englisch bleiben (Original), aber der umrahmende Text ist auf Hochdeutsch.
+
+Format (exakt so):
+💬 <b>Quote of the Day</b>
+
+„[Zitat auf Englisch]“
+
+— [Name des Autors]
+
+[2–3 Sätze Kommentar auf Hochdeutsch: Warum dieses Zitat für Trader relevant ist]
+
+🚀 EasySignals – Wir spielen das langfristige Spiel.
+
+Verwende HTML-Formatierung: <b> für Fettdruck, <i> für Kursivschrift.`;
   }
 }
 
@@ -176,11 +205,13 @@ export const contentBotRouter = router({
       autoSendSocialProof: false,
       autoSendScarcity: false,
       autoSendEveningRecap: false,
+      autoSendQuote: true,
       timeMindset: "07:30",
       timeRecap: "10:00",
       timeSocialProof: "13:00",
       timeScarcity: "17:00",
       timeEveningRecap: "20:00",
+      timeQuote: "09:00",
     };
   }),
 
@@ -192,11 +223,13 @@ export const contentBotRouter = router({
       autoSendSocialProof: z.boolean().optional(),
       autoSendScarcity: z.boolean().optional(),
       autoSendEveningRecap: z.boolean().optional(),
+      autoSendQuote: z.boolean().optional(),
       timeMindset: z.string().optional(),
       timeRecap: z.string().optional(),
       timeSocialProof: z.string().optional(),
       timeScarcity: z.string().optional(),
       timeEveningRecap: z.string().optional(),
+      timeQuote: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       await upsertSettings(ctx.user.id, input);
@@ -228,7 +261,7 @@ export const contentBotRouter = router({
   // Einzelnen Post generieren (ohne senden)
   generatePost: protectedProcedure
     .input(z.object({
-      type: z.enum(["mindset", "recap", "social_proof", "scarcity", "evening_recap"]),
+      type: z.enum(["mindset", "recap", "social_proof", "scarcity", "evening_recap", "quote"]),
     }))
     .mutation(async ({ ctx, input }) => {
       const settings = await getSettings(ctx.user.id);
@@ -238,6 +271,7 @@ export const contentBotRouter = router({
         social_proof: settings?.timeSocialProof ?? "13:00",
         scarcity: settings?.timeScarcity ?? "17:00",
         evening_recap: settings?.timeEveningRecap ?? "20:00",
+        quote: (settings as any)?.timeQuote ?? "09:00",
       };
       const text = await generatePostText(input.type);
       const db = await getDb();
@@ -253,9 +287,9 @@ export const contentBotRouter = router({
       return { id, text, type: input.type };
     }),
 
-  // Alle 5 Posts für heute generieren
+  // Alle Posts für heute generieren
   generateAllToday: protectedProcedure.mutation(async ({ ctx }) => {
-    const types: PostType[] = ["mindset", "recap", "social_proof", "scarcity", "evening_recap"];
+    const types: PostType[] = ["mindset", "recap", "social_proof", "scarcity", "evening_recap", "quote"];
     const settings = await getSettings(ctx.user.id);
     const timeMap: Record<PostType, string> = {
       mindset: settings?.timeMindset ?? "07:30",
@@ -263,6 +297,7 @@ export const contentBotRouter = router({
       social_proof: settings?.timeSocialProof ?? "13:00",
       scarcity: settings?.timeScarcity ?? "17:00",
       evening_recap: settings?.timeEveningRecap ?? "20:00",
+      quote: (settings as any)?.timeQuote ?? "09:00",
     };
     const db = await getDb();
     if (!db) throw new Error("Datenbank nicht verfügbar");
@@ -336,28 +371,29 @@ export const contentBotRouter = router({
     const settings = await getSettings(ctx.user.id);
     const s = settings ?? {
       autoSendMindset: false, autoSendRecap: false, autoSendSocialProof: false,
-      autoSendScarcity: false, autoSendEveningRecap: false,
+      autoSendScarcity: false, autoSendEveningRecap: false, autoSendQuote: true,
       timeMindset: "07:30", timeRecap: "10:00", timeSocialProof: "13:00",
-      timeScarcity: "17:00", timeEveningRecap: "20:00",
+      timeScarcity: "17:00", timeEveningRecap: "20:00", timeQuote: "09:00",
     };
 
     const typeConfig: Array<{
-      type: PostType; autoKey: keyof typeof s; timeKey: keyof typeof s;
+      type: PostType; autoKey: string; timeKey: string;
       label: string; emoji: string;
-    }> = [
-      { type: "mindset",       autoKey: "autoSendMindset",      timeKey: "timeMindset",      label: "Mindset",       emoji: "🧠" },
-      { type: "recap",         autoKey: "autoSendRecap",        timeKey: "timeRecap",        label: "Morning Recap", emoji: "📊" },
-      { type: "social_proof",  autoKey: "autoSendSocialProof",  timeKey: "timeSocialProof",  label: "Social Proof",  emoji: "🏆" },
-      { type: "scarcity",      autoKey: "autoSendScarcity",     timeKey: "timeScarcity",     label: "Scarcity/CTA",  emoji: "⚡" },
-      { type: "evening_recap", autoKey: "autoSendEveningRecap", timeKey: "timeEveningRecap", label: "Evening Recap", emoji: "🌙" },
+    }> = [      { type: "mindset",       autoKey: "autoSendMindset",      timeKey: "timeMindset",      label: "Mindset",           emoji: "🧠" },
+      { type: "recap",         autoKey: "autoSendRecap",        timeKey: "timeRecap",        label: "Morning Recap",     emoji: "📊" },
+      { type: "social_proof",  autoKey: "autoSendSocialProof",  timeKey: "timeSocialProof",  label: "Social Proof",      emoji: "🏆" },
+      { type: "scarcity",      autoKey: "autoSendScarcity",     timeKey: "timeScarcity",     label: "Scarcity/CTA",      emoji: "⚡" },
+      { type: "evening_recap", autoKey: "autoSendEveningRecap", timeKey: "timeEveningRecap", label: "Evening Recap",      emoji: "🌙" },
+      { type: "quote",         autoKey: "autoSendQuote",        timeKey: "timeQuote",        label: "Quote of the Day",  emoji: "💬" },
     ];
 
     const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
 
     const items = typeConfig.map((cfg) => {
-      const isEnabled = s[cfg.autoKey] as boolean;
-      const timeStr = s[cfg.timeKey] as string;
+      const sAny = s as Record<string, unknown>;
+      const isEnabled = sAny[cfg.autoKey] as boolean;
+      const timeStr = sAny[cfg.timeKey] as string;
       const todayAt = new Date(`${todayStr}T${timeStr}:00`);
       let nextAt: Date;
       if (todayAt > now) {
@@ -407,6 +443,7 @@ export async function runContentBotScheduler(userId: number): Promise<void> {
     social_proof: settings.autoSendSocialProof,
     scarcity: settings.autoSendScarcity,
     evening_recap: settings.autoSendEveningRecap,
+    quote: (settings as any).autoSendQuote ?? true,
   };
   const timeMap: Record<PostType, string> = {
     mindset: settings.timeMindset,
@@ -414,6 +451,7 @@ export async function runContentBotScheduler(userId: number): Promise<void> {
     social_proof: settings.timeSocialProof,
     scarcity: settings.timeScarcity,
     evening_recap: settings.timeEveningRecap,
+    quote: (settings as any).timeQuote ?? "09:00",
   };
 
   // Welcher Post-Typ ist jetzt fällig? (±5 Minuten Toleranz, Schweizer Zeit)

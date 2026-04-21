@@ -391,3 +391,15 @@
 - [x] Backend: getScheduledTime + zurichTimeToDate Hilfsfunktionen für korrekte TZ-Konvertierung
 - [x] Frontend: Zeitzone-Hinweis im Scheduler-Tab auf "Schweizer Zeit (CEST/CET)" geändert
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Hochdeutsch + Quote of the Day (April 2026)
+- [x] Backend: Alle KI-Prompts auf sauberes Hochdeutsch umschreiben (kein Schweizerdeutsch)
+- [x] Backend: Formatierung verbessern (klare Absätze, konsistente Emojis, kein Fließtext)
+- [x] Backend: Neuer Post-Typ "quote" (Quote of the Day, täglich 09:00 Uhr, vollautomatisch)
+- [x] Backend: KI wählt bekanntes Trading-Zitat + Autor, HTML-formatiert mit EasySignals-Branding
+- [x] Backend: quote in PostType, autoMap, timeMap, getSchedulerStatus, generatePost, generateAllToday
+- [x] DB: content_bot_settings – autoSendQuote + timeQuote Felder (Migration 0013)
+- [x] DB: content_posts.type Enum um "quote" erweitert
+- [x] Frontend: POST_TYPE_CONFIG um "quote" erweitert
+- [x] Frontend: Quote-Slot in Heute-Ansicht und Einstellungen (Auto-Send Toggle + Zeitpicker)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
