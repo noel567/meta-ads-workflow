@@ -215,23 +215,34 @@ export const driveToMetaRouter = router({
       return { connected: false, videos: [], uploads: [] };
     }
 
-    const conn = connections[0];
-    const accessToken = await getValidAccessToken({
-      accessToken: conn.accessToken,
-      refreshToken: conn.refreshToken ?? "",
-      tokenExpiresAt: conn.tokenExpiry ?? null,
-    });
-
+      const conn = connections[0];
+    let accessToken: string;
+    try {
+      accessToken = await getValidAccessToken({
+        accessToken: conn.accessToken,
+        refreshToken: conn.refreshToken ?? "",
+        tokenExpiresAt: conn.tokenExpiry ?? null,
+      });
+    } catch (e: any) {
+      console.error("[DriveToMeta] Token-Refresh fehlgeschlagen:", e.message);
+      return { connected: false, videos: [], uploads: [], error: "token_refresh_failed" };
+    }
     // Videos aus Drive holen
-    const videos = await listDriveVideos(accessToken);
-
+    let videos: Awaited<ReturnType<typeof listDriveVideos>>;
+    try {
+      videos = await listDriveVideos(accessToken);
+    } catch (e: any) {
+      console.error("[DriveToMeta] Drive API Fehler:", e.message);
+      // 403 = falscher Scope → Re-Auth nötig
+      const needsReauth = e.message.includes("403") || e.message.includes("insufficientPermissions") || e.message.includes("forbidden");
+      return { connected: false, videos: [], uploads: [], error: needsReauth ? "insufficient_scope" : "drive_api_error", errorMessage: e.message };
+    }
     // Bisherige Uploads aus DB holen
     const uploads = await db.select().from(driveMetaUploads)
       .where(eq(driveMetaUploads.userId, ctx.user.id))
       .orderBy(desc(driveMetaUploads.createdAt))
       .limit(100);
-
-    return { connected: true, videos, uploads };
+    return { connected: true, videos, uploads, error: null, errorMessage: null };
   }),
 
   // Video von Drive zu Meta hochladen

@@ -223,14 +223,28 @@ export default function DriveToMeta() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2 text-amber-400">
                 <AlertCircle className="h-5 w-5" />
-                Google Drive neu verbinden
+                {(data as any).error === "insufficient_scope"
+                  ? "Erweiterter Zugriff erforderlich"
+                  : (data as any).error === "token_refresh_failed"
+                  ? "Verbindung abgelaufen"
+                  : "Google Drive verbinden"}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Der Lesezugriff auf deinen Drive-Ordner erfordert eine neue Autorisierung mit erweitertem Scope (<code className="text-xs bg-muted px-1 rounded">drive</code>).
-                Klicke auf den Button unten — du wirst kurz zu Google weitergeleitet und danach automatisch zurückgeleitet.
-              </p>
+              {(data as any).error === "insufficient_scope" ? (
+                <p className="text-sm text-muted-foreground">
+                  Die bestehende Google Drive Verbindung hat nicht genug Berechtigungen, um auf den Ordner <strong>01_Video_Ads</strong> zuzugreifen.
+                  Klicke auf <strong>Neu verbinden</strong> — du wirst kurz zu Google weitergeleitet und danach automatisch zurückgeleitet.
+                </p>
+              ) : (data as any).error === "token_refresh_failed" ? (
+                <p className="text-sm text-muted-foreground">
+                  Die Google Drive Verbindung ist abgelaufen. Bitte neu verbinden.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Verbinde dein Google Drive Konto um Videos aus dem Ordner <strong>01_Video_Ads</strong> direkt zu Meta hochzuladen.
+                </p>
+              )}
               <Button
                 className="gap-2"
                 onClick={() => {
@@ -243,7 +257,7 @@ export default function DriveToMeta() {
                 disabled={!authUrlData?.url}
               >
                 <HardDrive className="h-4 w-4" />
-                Google Drive verbinden
+                {(data as any).error ? "Neu verbinden" : "Google Drive verbinden"}
               </Button>
             </CardContent>
           </Card>
