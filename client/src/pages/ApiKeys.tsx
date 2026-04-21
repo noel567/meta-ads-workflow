@@ -81,6 +81,14 @@ export default function ApiKeys() {
     { method: "GET", path: "/api/v1/video-research", desc: "Video Research" },
     { method: "GET", path: "/api/v1/telegram-posts", desc: "Telegram-Posts" },
     { method: "GET", path: "/api/v1/drive-uploads", desc: "Drive-Uploads" },
+    // ─ Schreiben ────────────────────────────────────────────────────────────
+    { method: "POST", path: "/api/v1/competitors", desc: "Konkurrenten hinzufügen (body: name, pageId?, country?, language?, notes?)" },
+    { method: "DELETE", path: "/api/v1/competitors/:id", desc: "Konkurrenten löschen" },
+    { method: "POST", path: "/api/v1/scan", desc: "Konkurrenten-Scan starten (async, 202)" },
+    { method: "POST", path: "/api/v1/batches/generate", desc: "Ad-Batch generieren (body: adId)" },
+    { method: "POST", path: "/api/v1/budget-rules", desc: "Budget-Regel erstellen (body: name, metric, condition, threshold, action, changePercent?)" },
+    { method: "PATCH", path: "/api/v1/budget-rules/:id/toggle", desc: "Budget-Regel aktivieren / deaktivieren" },
+    { method: "POST", path: "/api/v1/budget-rules/run", desc: "Alle Budget-Regeln ausführen (async, 202)" },
   ];
 
   return (
@@ -112,7 +120,7 @@ export default function ApiKeys() {
             Aktive API-Keys
           </CardTitle>
           <CardDescription>
-            Jeder Key gewährt Lesezugriff auf alle deine Daten. Gib Keys nur an vertrauenswürdige Dienste weiter.
+            Jeder Key gewährt Lese- und Schreibzugriff auf alle deine Daten. Gib Keys nur an vertrauenswürdige Dienste weiter.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -183,9 +191,14 @@ export default function ApiKeys() {
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground mb-3">Alle Endpunkte geben JSON zurück: <code className="bg-muted px-1 rounded">{"{ ok: true, data: [...] }"}</code></p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {endpoints.map((ep) => (
-                <div key={ep.path} className="flex items-center gap-2 p-2 rounded border border-border bg-muted/20 text-xs">
-                  <Badge variant="outline" className="text-green-400 border-green-400/30 shrink-0 text-[10px]">
+              {endpoints.filter(ep => !ep.path.startsWith('//') && ep.method).map((ep) => (
+                <div key={ep.method + ep.path} className="flex items-center gap-2 p-2 rounded border border-border bg-muted/20 text-xs">
+                  <Badge variant="outline" className={`shrink-0 text-[10px] ${
+                    ep.method === 'GET' ? 'text-green-400 border-green-400/30' :
+                    ep.method === 'POST' ? 'text-blue-400 border-blue-400/30' :
+                    ep.method === 'PATCH' ? 'text-yellow-400 border-yellow-400/30' :
+                    ep.method === 'DELETE' ? 'text-red-400 border-red-400/30' : ''
+                  }`}>
                     {ep.method}
                   </Badge>
                   <code className="text-blue-400 truncate">{ep.path}</code>

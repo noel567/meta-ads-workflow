@@ -333,3 +333,14 @@
 - [x] Frontend: API-Dokumentation auf der Seite (alle Endpunkte + curl-Beispiel)
 - [x] Sidebar-Navigation: "API-Keys" Eintrag (Key-Icon)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Externe API POST-Endpunkte (April 2026)
+- [x] POST /api/v1/competitors — Neuen Konkurrenten hinzufügen (name, pageId, country, language, notes)
+- [x] DELETE /api/v1/competitors/:id — Konkurrenten entfernen
+- [x] POST /api/v1/scan — Täglichen Konkurrenten-Scan manuell auslösen (async, 202)
+- [x] POST /api/v1/batches/generate — Batch für eine Konkurrenz-Ad generieren (adId)
+- [x] POST /api/v1/budget-rules — Neue Budget-Regel erstellen
+- [x] PATCH /api/v1/budget-rules/:id/toggle — Budget-Regel aktivieren/deaktivieren
+- [x] POST /api/v1/budget-rules/run — Alle Budget-Regeln jetzt ausführen (async, 202)
+- [x] Frontend: POST/DELETE/PATCH-Endpunkte in API-Dokumentation mit farbcodierten Badges (blau/rot/gelb)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
