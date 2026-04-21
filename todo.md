@@ -369,3 +369,12 @@
 - [x] Frontend: Sofortiges Speichern der Uhrzeit via updateSettings Mutation (onBlur)
 - [x] Frontend: Aktualisierte Zeiten werden in der Heute-Ansicht (PostCard) reflektiert
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Telegram Bot + Content Bot zusammenführen (April 2026)
+- [x] ContentBot.tsx: "Bot testen" Button (testConnection) in Header integrieren
+- [x] ContentBot.tsx: "Creative Report" Button (sendCreativeReport) in Header integrieren
+- [x] ContentBot.tsx: Bild-Vorschau (imageUrl) in PostCard anzeigen wenn vorhanden
+- [x] Sidebar: "Telegram Bot" Eintrag entfernen
+- [x] App.tsx: /telegram Route auf /content-bot umleiten (Redirect)
+- [x] App.tsx: TelegramBot Import entfernen
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

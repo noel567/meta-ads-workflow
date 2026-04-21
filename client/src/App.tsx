@@ -15,7 +15,6 @@ import Competitors from "./pages/Competitors";
 import Batches from "./pages/Batches";
 import Settings from "./pages/Settings";
 import VideoResearch from "./pages/VideoResearch";
-import TelegramBot from "./pages/TelegramBot";
 import MetaAdsDashboard from "./pages/MetaAdsDashboard";
 import BudgetRules from "./pages/BudgetRules";
 import DriveToMeta from "./pages/DriveToMeta";
@@ -36,7 +35,7 @@ function Router() {
       <Route path="/documents" component={Documents} />
       <Route path="/settings" component={Settings} />
       <Route path="/video-research" component={VideoResearch} />
-      <Route path="/telegram" component={TelegramBot} />
+      <Route path="/telegram">{() => { window.location.replace("/content-bot"); return null; }}</Route>
       <Route path="/meta-ads" component={MetaAdsDashboard} />
       <Route path="/budget-rules" component={BudgetRules} />
       <Route path="/drive-to-meta" component={DriveToMeta} />

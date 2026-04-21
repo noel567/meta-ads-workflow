@@ -22,6 +22,8 @@ import {
   Settings2,
   History,
   CalendarDays,
+  BarChart2,
+  Image as ImageIcon,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -91,7 +93,7 @@ function PostCard({
   isGenerating,
 }: {
   type: PostType;
-  post?: { id: number; text: string; status: string; scheduledAt: Date | string; sentAt?: Date | string | null };
+  post?: { id: number; text: string; status: string; scheduledAt: Date | string; sentAt?: Date | string | null; imageUrl?: string | null };
   onGenerate: (type: PostType) => void;
   onSend: (postId: number) => void;
   onDelete: (postId: number) => void;
@@ -212,6 +214,16 @@ function PostCard({
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
+            {post.imageUrl ? (
+              <div className="rounded-lg overflow-hidden border border-border/30">
+                <img src={post.imageUrl} alt="Post-Bild" className="w-full h-36 object-cover" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/50">
+                <ImageIcon className="h-3 w-3" />
+                Kein Bild
+              </div>
+            )}
             {post.status === "sent" && post.sentAt && (
               <p className="text-xs text-muted-foreground">
                 Gesendet um {new Date(post.sentAt).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}
@@ -484,6 +496,17 @@ export default function ContentBot() {
     onError: (e) => toast.error(e.message),
   });
 
+  // Vom alten Telegram Bot übernommene Aktionen
+  const testConnectionMutation = trpc.telegram.testConnection.useMutation({
+    onSuccess: (d: any) => toast.success(`Verbindung OK – Bot: @${d.botName} | Chat: ${d.chatId}`),
+    onError: (e) => toast.error(`Verbindung fehlgeschlagen: ${e.message}`),
+  });
+
+  const sendCreativeReportMutation = trpc.metaInsights.sendCreativeReport.useMutation({
+    onSuccess: () => toast.success("Creative Report wurde an Telegram gesendet!"),
+    onError: (e) => toast.error(`Report fehlgeschlagen: ${e.message}`),
+  });
+
   const handleGenerate = (type: PostType) => {
     setGeneratingType(type);
     generateMutation.mutate({ type });
@@ -511,7 +534,7 @@ export default function ContentBot() {
     <DashboardLayout>
       <div className="p-6 space-y-6 max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
               <Bot className="h-5 w-5 text-primary" />
@@ -521,19 +544,40 @@ export default function ContentBot() {
               <p className="text-sm text-muted-foreground">EasySignals Telegram Posts – 5 täglich im Livio-Stil</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             {totalCount > 0 && (
               <div className="text-xs text-muted-foreground bg-card/50 border border-border/50 rounded-lg px-3 py-1.5">
                 <span className="text-foreground font-medium">{sentCount}</span>/{totalCount} gesendet
               </div>
             )}
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => sendCreativeReportMutation.mutate()}
+              disabled={sendCreativeReportMutation.isPending}
+              className="gap-1.5"
+            >
+              {sendCreativeReportMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BarChart2 className="h-3.5 w-3.5" />}
+              Creative Report
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => testConnectionMutation.mutate()}
+              disabled={testConnectionMutation.isPending}
+              className="gap-1.5"
+            >
+              {testConnectionMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              Bot testen
+            </Button>
+            <Button
               onClick={handleGenerateAll}
               disabled={isGeneratingAll}
-              className="gap-2"
+              size="sm"
+              className="gap-1.5"
             >
-              {isGeneratingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-              Alle heute generieren
+              {isGeneratingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              Alle generieren
             </Button>
           </div>
         </div>
