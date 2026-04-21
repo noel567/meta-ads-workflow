@@ -39,6 +39,7 @@ import {
   TrendingUp,
   Sliders,
   CloudUpload,
+  Key,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -58,6 +59,7 @@ const menuItems = [
   { icon: TrendingUp, label: "Meta Ads Analytics", path: "/meta-ads" },
   { icon: Sliders, label: "Budget-Regeln", path: "/budget-rules" },
   { icon: CloudUpload, label: "Drive → Meta", path: "/drive-to-meta" },
+  { icon: Key, label: "API-Keys", path: "/api-keys" },
   { icon: Send, label: "Telegram Bot", path: "/telegram" },
   { icon: BookOpen, label: "Transkripte", path: "/transcripts" },
   { icon: MonitorPlay, label: "Teleprompter", path: "/teleprompter" },

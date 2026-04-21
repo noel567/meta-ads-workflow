@@ -26,6 +26,7 @@ import { metaInsightsRouter } from "./metaInsightsRouter";
 import { adCommentsRouter } from "./adCommentsRouter";
 import { budgetRulesRouter } from "./budgetRulesRouter";
 import { driveToMetaRouter } from "./driveToMetaRouter";
+import { createApiKey, getApiKeysByUser, revokeApiKey } from "./db";
 import { ENV } from "./_core/env";
 
 // ─── Meta API Helper ──────────────────────────────────────────────────────────
@@ -1470,6 +1471,27 @@ export const appRouter = router({
   adComments: adCommentsRouter,
   budgetRules: budgetRulesRouter,
   driveToMeta: driveToMetaRouter,
+  apiKeys: router({
+    create: protectedProcedure
+      .input(z.object({ name: z.string().min(1).max(128) }))
+      .mutation(async ({ ctx, input }) => {
+        const crypto = await import("crypto");
+        const rawKey = `maw_${crypto.randomBytes(32).toString("hex")}`;
+        const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+        const keyPreview = `${rawKey.slice(0, 12)}...${rawKey.slice(-6)}`;
+        const id = await createApiKey({ userId: ctx.user.id, name: input.name, keyHash, keyPreview });
+        return { id, name: input.name, key: rawKey, keyPreview };
+      }),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getApiKeysByUser(ctx.user.id);
+    }),
+    revoke: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await revokeApiKey(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

@@ -518,3 +518,17 @@ export const driveMetaUploads = mysqlTable("drive_meta_uploads", {
 });
 export type DriveMetaUpload = typeof driveMetaUploads.$inferSelect;
 export type InsertDriveMetaUpload = typeof driveMetaUploads.$inferInsert;
+
+// ─── External API Keys ────────────────────────────────────────────────────────
+export const apiKeys = mysqlTable("api_keys", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  keyHash: varchar("keyHash", { length: 64 }).notNull(),
+  keyPreview: varchar("keyPreview", { length: 16 }).notNull(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  revokedAt: timestamp("revokedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = typeof apiKeys.$inferInsert;

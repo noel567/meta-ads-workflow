@@ -19,6 +19,7 @@ import TelegramBot from "./pages/TelegramBot";
 import MetaAdsDashboard from "./pages/MetaAdsDashboard";
 import BudgetRules from "./pages/BudgetRules";
 import DriveToMeta from "./pages/DriveToMeta";
+import ApiKeys from "./pages/ApiKeys";
 
 function Router() {
   return (
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/meta-ads" component={MetaAdsDashboard} />
       <Route path="/budget-rules" component={BudgetRules} />
       <Route path="/drive-to-meta" component={DriveToMeta} />
+      <Route path="/api-keys" component={ApiKeys} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

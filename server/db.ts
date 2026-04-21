@@ -34,6 +34,9 @@ import {
   telegramSettings,
   InsertTelegramSettings,
   TelegramSettings,
+  apiKeys,
+  ApiKey,
+  InsertApiKey,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -550,4 +553,46 @@ export async function upsertTelegramSettings(data: InsertTelegramSettings): Prom
   } else {
     await db.insert(telegramSettings).values(data);
   }
+}
+
+// ─── External API Keys ────────────────────────────────────────────────────────
+
+export async function createApiKey(data: InsertApiKey): Promise<number | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.insert(apiKeys).values(data);
+  return (result as any)[0]?.insertId as number | undefined;
+}
+
+export async function getApiKeysByUser(userId: number): Promise<ApiKey[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(apiKeys)
+    .where(and(eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt)))
+    .orderBy(desc(apiKeys.createdAt));
+}
+
+export async function getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(apiKeys)
+    .where(and(eq(apiKeys.keyHash, keyHash), isNull(apiKeys.revokedAt)))
+    .limit(1);
+  return result[0];
+}
+
+export async function revokeApiKey(id: number, userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(apiKeys).set({ revokedAt: new Date() }).where(and(eq(apiKeys.id, id), eq(apiKeys.userId, userId)));
+}
+
+export async function updateApiKeyLastUsed(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, id));
 }

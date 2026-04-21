@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startScheduler, runDailyScan } from "../scheduler";
 import { registerGoogleOAuthRoutes } from "../googleOAuthRoutes";
+import { createExternalApiRouter } from "../externalApiRoutes";
 import { ENV } from "./env";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -152,6 +153,9 @@ async function startServer() {
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     res.status(200).end();
   });
+
+  // External REST API v1 (API-Key authenticated)
+  app.use("/api/v1", createExternalApiRouter());
 
   // Health check endpoint
   app.get("/api/health", (_req, res) => {

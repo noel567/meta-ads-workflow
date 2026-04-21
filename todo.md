@@ -308,3 +308,28 @@
 - [x] Frontend: Batch-Upload sequenziell (ein Video nach dem anderen, mit Fortschrittsanzeige)
 - [x] Frontend: Bereits hochgeladene Videos nicht auswählbar (deaktivierte Checkbox)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Externe REST API mit API-Key Authentifizierung (April 2026)
+- [x] DB: api_keys Tabelle (id, userId, name, keyHash, keyPreview, lastUsedAt, createdAt, revokedAt)
+- [x] DB: DB-Helpers (createApiKey, getApiKeysByUser, getApiKeyByHash, revokeApiKey, updateApiKeyLastUsed)
+- [x] Server: externalApiRoutes.ts — Express REST-Endpunkte unter /api/v1/
+- [x] API: Middleware: Bearer Token aus Authorization-Header prüfen
+- [x] API: GET /api/v1/me — API-Key Inhaber Info
+- [x] API: GET /api/v1/campaigns — Kampagnen abrufen
+- [x] API: GET /api/v1/ads — Ads abrufen
+- [x] API: GET /api/v1/competitors — Konkurrenten abrufen
+- [x] API: GET /api/v1/competitor-ads — Konkurrenz-Ads abrufen
+- [x] API: GET /api/v1/batches — Ad-Batches abrufen
+- [x] API: GET /api/v1/transcripts — Transkripte abrufen
+- [x] API: GET /api/v1/budget-rules — Budget-Regeln abrufen
+- [x] API: GET /api/v1/heygen-videos — HeyGen-Videos abrufen
+- [x] API: GET /api/v1/video-research — Video Research Einträge abrufen
+- [x] API: GET /api/v1/telegram-posts — Telegram-Posts abrufen
+- [x] API: GET /api/v1/drive-uploads — Drive-Uploads abrufen
+- [x] tRPC: apiKeys.create, apiKeys.list, apiKeys.revoke Prozeduren
+- [x] Frontend: API-Keys Seite (/api-keys)
+- [x] Frontend: Key erstellen (Name eingeben, Key wird einmalig angezeigt + Copy-Button)
+- [x] Frontend: Key-Liste (Name, Preview, zuletzt verwendet, widerrufen)
+- [x] Frontend: API-Dokumentation auf der Seite (alle Endpunkte + curl-Beispiel)
+- [x] Sidebar-Navigation: "API-Keys" Eintrag (Key-Icon)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
