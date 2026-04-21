@@ -378,3 +378,9 @@
 - [x] App.tsx: /telegram Route auf /content-bot umleiten (Redirect)
 - [x] App.tsx: TelegramBot Import entfernen
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Scheduler-Statusanzeige (April 2026)
+- [x] Backend: contentBot.getSchedulerStatus Prozedur (berechnet nächsten geplanten Post pro Typ)
+- [x] Frontend: SchedulerStatusPanel als eigener Tab (Tabelle aller Post-Typen mit Countdown)
+- [x] Frontend: Übersichts-Banner mit nächstem Auto-Post im Scheduler-Tab
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

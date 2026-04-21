@@ -298,6 +298,67 @@ export const contentBotRouter = router({
         .where(and(eq(contentPosts.id, input.postId), eq(contentPosts.userId, ctx.user.id)));
       return { success: true };
     }),
+
+  // Scheduler-Status: nächste geplante Posts berechnen
+  getSchedulerStatus: protectedProcedure.query(async ({ ctx }) => {
+    const settings = await getSettings(ctx.user.id);
+    const s = settings ?? {
+      autoSendMindset: false, autoSendRecap: false, autoSendSocialProof: false,
+      autoSendScarcity: false, autoSendEveningRecap: false,
+      timeMindset: "07:30", timeRecap: "10:00", timeSocialProof: "13:00",
+      timeScarcity: "17:00", timeEveningRecap: "20:00",
+    };
+
+    const typeConfig: Array<{
+      type: PostType; autoKey: keyof typeof s; timeKey: keyof typeof s;
+      label: string; emoji: string;
+    }> = [
+      { type: "mindset",       autoKey: "autoSendMindset",      timeKey: "timeMindset",      label: "Mindset",       emoji: "🧠" },
+      { type: "recap",         autoKey: "autoSendRecap",        timeKey: "timeRecap",        label: "Morning Recap", emoji: "📊" },
+      { type: "social_proof",  autoKey: "autoSendSocialProof",  timeKey: "timeSocialProof",  label: "Social Proof",  emoji: "🏆" },
+      { type: "scarcity",      autoKey: "autoSendScarcity",     timeKey: "timeScarcity",     label: "Scarcity/CTA",  emoji: "⚡" },
+      { type: "evening_recap", autoKey: "autoSendEveningRecap", timeKey: "timeEveningRecap", label: "Evening Recap", emoji: "🌙" },
+    ];
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+
+    const items = typeConfig.map((cfg) => {
+      const isEnabled = s[cfg.autoKey] as boolean;
+      const timeStr = s[cfg.timeKey] as string;
+      const todayAt = new Date(`${todayStr}T${timeStr}:00`);
+      let nextAt: Date;
+      if (todayAt > now) {
+        nextAt = todayAt;
+      } else {
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        nextAt = new Date(`${tomorrow.toISOString().slice(0, 10)}T${timeStr}:00`);
+      }
+      const diffMs = nextAt.getTime() - now.getTime();
+      const hoursUntil = Math.floor(diffMs / 3600000);
+      const minutesUntil = Math.floor((diffMs % 3600000) / 60000);
+      const isToday = nextAt.toISOString().slice(0, 10) === todayStr;
+      return {
+        type: cfg.type,
+        label: cfg.label,
+        emoji: cfg.emoji,
+        isEnabled,
+        scheduledTime: timeStr,
+        nextAtMs: nextAt.getTime(),
+        isToday,
+        hoursUntil,
+        minutesUntil,
+      };
+    });
+
+    const enabledItems = items.filter((r) => r.isEnabled);
+    const nextOverall = enabledItems.length > 0
+      ? enabledItems.reduce((a, b) => (a.nextAtMs < b.nextAtMs ? a : b))
+      : null;
+
+    return { items, nextOverall };
+  }),
 });
 
 // ─── Scheduler-Funktion (wird von scheduler.ts aufgerufen) ───────────────────

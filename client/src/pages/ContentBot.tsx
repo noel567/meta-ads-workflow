@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -395,6 +395,130 @@ function SettingsPanel() {
   );
 }
 
+// ─── Scheduler Status Panel ───────────────────────────────────────────────────────
+function formatCountdown(hoursUntil: number, minutesUntil: number, isToday: boolean): string {
+  if (hoursUntil === 0 && minutesUntil === 0) return "Jetzt fällig";
+  if (hoursUntil === 0) return `in ${minutesUntil} Min`;
+  if (!isToday) return `morgen (in ${hoursUntil}h ${minutesUntil}min)`;
+  return `in ${hoursUntil}h ${minutesUntil}min`;
+}
+
+function SchedulerStatusPanel() {
+  const { data, isLoading, refetch } = trpc.contentBot.getSchedulerStatus.useQuery(
+    undefined,
+    { refetchInterval: 60_000 } // jede Minute aktualisieren
+  );
+
+  // Lokaler Countdown-Ticker
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-8">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+    </div>
+  );
+
+  const enabledCount = data?.items.filter((i) => i.isEnabled).length ?? 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Übersichts-Banner */}
+      <div className="rounded-lg border border-border/50 bg-card/50 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
+              Scheduler-Status
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {enabledCount === 0
+                ? "Kein Auto-Send aktiv – alle Posts werden manuell gesendet"
+                : `${enabledCount} Post-Typ${enabledCount > 1 ? "en" : ""} mit Auto-Send aktiv`}
+            </p>
+          </div>
+          {data?.nextOverall && (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Nächster Auto-Post</p>
+              <p className="text-sm font-semibold text-primary">
+                {data.nextOverall.emoji} {data.nextOverall.label}
+              </p>
+              <p className="text-xs text-emerald-400 font-medium">
+                {formatCountdown(data.nextOverall.hoursUntil, data.nextOverall.minutesUntil, data.nextOverall.isToday)}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tabelle aller Post-Typen */}
+      <div className="rounded-lg border border-border/50 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border/50 bg-card/30">
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Post-Typ</th>
+              <th className="text-center px-4 py-2.5 text-xs font-medium text-muted-foreground">Uhrzeit</th>
+              <th className="text-center px-4 py-2.5 text-xs font-medium text-muted-foreground">Auto-Send</th>
+              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Nächster Post</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.items.map((item, i) => (
+              <tr
+                key={item.type}
+                className={`border-b border-border/30 last:border-0 ${
+                  item.isEnabled ? "bg-card/20" : "opacity-50"
+                }`}
+              >
+                <td className="px-4 py-3">
+                  <span className="flex items-center gap-2">
+                    <span className="text-base">{item.emoji}</span>
+                    <span className="font-medium">{item.label}</span>
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <span className="font-mono text-xs bg-background/50 border border-border/40 rounded px-2 py-0.5">
+                    {item.scheduledTime} Uhr
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-center">
+                  {item.isEnabled ? (
+                    <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-xs">Aktiv</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs text-muted-foreground">Manuell</Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {item.isEnabled ? (
+                    <span className={`text-xs font-medium ${
+                      item.hoursUntil < 2 ? "text-amber-400" : "text-muted-foreground"
+                    }`}>
+                      {item.isToday ? "Heute" : "Morgen"}, {item.scheduledTime} Uhr
+                      <br />
+                      <span className="text-emerald-400/80">
+                        {formatCountdown(item.hoursUntil, item.minutesUntil, item.isToday)}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground/50">–</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-xs text-muted-foreground text-center">
+        Scheduler prüft alle 5 Minuten (±5 Min Toleranz). Zeiten in Serverzeit (UTC).
+      </p>
+    </div>
+  );
+}
+
 // ─── History Panel ────────────────────────────────────────────────────────────
 function HistoryPanel() {
   const { data: history, isLoading } = trpc.contentBot.getHistory.useQuery({ days: 7 });
@@ -593,6 +717,10 @@ export default function ContentBot() {
               <History className="h-3.5 w-3.5" />
               Verlauf (7 Tage)
             </TabsTrigger>
+            <TabsTrigger value="scheduler" className="gap-2 text-xs">
+              <Clock className="h-3.5 w-3.5" />
+              Scheduler
+            </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2 text-xs">
               <Settings2 className="h-3.5 w-3.5" />
               Einstellungen
@@ -625,6 +753,11 @@ export default function ContentBot() {
           {/* History */}
           <TabsContent value="history" className="mt-4">
             <HistoryPanel />
+          </TabsContent>
+
+          {/* Scheduler Status */}
+          <TabsContent value="scheduler" className="mt-4">
+            <SchedulerStatusPanel />
           </TabsContent>
 
           {/* Settings */}
