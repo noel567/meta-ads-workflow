@@ -229,12 +229,46 @@ function SettingsPanel() {
   const { data: settings, isLoading } = trpc.contentBot.getSettings.useQuery();
   const utils = trpc.useUtils();
 
+  // Local time state – initialised from server data once loaded
+  const [localTimes, setLocalTimes] = useState<Record<string, string>>({});
+  const [savingTime, setSavingTime] = useState<string | null>(null);
+
+  // Sync local state when server data arrives
+  const settingsRef = settings;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const [_synced] = useState(() => {
+    // Initial value is set lazily – will be overridden by the effect below
+    return false;
+  });
+  // Use a ref to avoid stale closure issues
+  const [_initDone, setInitDone] = useState(false);
+  if (!_initDone && settingsRef) {
+    setLocalTimes({
+      timeMindset: settingsRef.timeMindset ?? "07:30",
+      timeRecap: settingsRef.timeRecap ?? "10:00",
+      timeSocialProof: settingsRef.timeSocialProof ?? "13:00",
+      timeScarcity: settingsRef.timeScarcity ?? "17:00",
+      timeEveningRecap: settingsRef.timeEveningRecap ?? "20:00",
+    });
+    setInitDone(true);
+  }
+
   const updateMutation = trpc.contentBot.updateSettings.useMutation({
-    onSuccess: () => {
-      toast.success("Einstellungen gespeichert");
+    onSuccess: (_data, variables) => {
+      const timeKey = Object.keys(variables).find((k) => k.startsWith("time"));
+      if (timeKey) {
+        toast.success(`Uhrzeit gespeichert`);
+        setSavingTime(null);
+      } else {
+        toast.success("Einstellungen gespeichert");
+      }
       utils.contentBot.getSettings.invalidate();
+      utils.contentBot.getTodaysPosts.invalidate();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => {
+      toast.error(e.message);
+      setSavingTime(null);
+    },
   });
 
   if (isLoading) return <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -243,12 +277,25 @@ function SettingsPanel() {
     updateMutation.mutate({ [key]: value });
   };
 
+  const handleTimeChange = (timeKey: string, value: string) => {
+    setLocalTimes((prev) => ({ ...prev, [timeKey]: value }));
+  };
+
+  const handleTimeBlur = (timeKey: string) => {
+    const value = localTimes[timeKey];
+    if (!value) return;
+    // Validate HH:MM format
+    if (!/^\d{2}:\d{2}$/.test(value)) return;
+    setSavingTime(timeKey);
+    updateMutation.mutate({ [timeKey]: value });
+  };
+
   const autoSendItems = [
-    { key: "autoSendMindset", label: "Mindset", emoji: "🧠", time: settings?.timeMindset ?? "07:30", timeKey: "timeMindset" },
-    { key: "autoSendRecap", label: "Morning Recap", emoji: "📊", time: settings?.timeRecap ?? "10:00", timeKey: "timeRecap" },
-    { key: "autoSendSocialProof", label: "Social Proof", emoji: "🏆", time: settings?.timeSocialProof ?? "13:00", timeKey: "timeSocialProof" },
-    { key: "autoSendScarcity", label: "Scarcity / CTA", emoji: "⚡", time: settings?.timeScarcity ?? "17:00", timeKey: "timeScarcity" },
-    { key: "autoSendEveningRecap", label: "Evening Recap", emoji: "🌙", time: settings?.timeEveningRecap ?? "20:00", timeKey: "timeEveningRecap" },
+    { key: "autoSendMindset", label: "Mindset", emoji: "🧠", timeKey: "timeMindset", description: "Motivations-Post" },
+    { key: "autoSendRecap", label: "Morning Recap", emoji: "📊", timeKey: "timeRecap", description: "Marktausblick" },
+    { key: "autoSendSocialProof", label: "Social Proof", emoji: "🏆", timeKey: "timeSocialProof", description: "Community-Erfolge" },
+    { key: "autoSendScarcity", label: "Scarcity / CTA", emoji: "⚡", timeKey: "timeScarcity", description: "Verknappung & CTA" },
+    { key: "autoSendEveningRecap", label: "Evening Recap", emoji: "🌙", timeKey: "timeEveningRecap", description: "Abend-Zusammenfassung" },
   ] as const;
 
   return (
@@ -256,32 +303,62 @@ function SettingsPanel() {
       <div className="rounded-lg border border-border/50 bg-card/50 p-4 space-y-1">
         <h3 className="text-sm font-semibold flex items-center gap-2">
           <Settings2 className="h-4 w-4 text-primary" />
-          Auto-Send Einstellungen
+          Auto-Send & Posting-Zeiten
         </h3>
         <p className="text-xs text-muted-foreground">
-          Aktiviere Auto-Send für einzelne Post-Typen. Der Scheduler prüft alle 5 Minuten ob ein Post fällig ist.
+          Lege die Uhrzeit pro Post-Typ fest und aktiviere Auto-Send. Der Scheduler prüft alle 5 Minuten ob ein Post fällig ist (±5 Min Toleranz).
         </p>
       </div>
 
       <div className="space-y-3">
         {autoSendItems.map((item) => {
           const isEnabled = settings?.[item.key as keyof typeof settings] as boolean ?? false;
+          const currentTime = localTimes[item.timeKey] ?? (settings?.[item.timeKey as keyof typeof settings] as string ?? "");
+          const isSavingThis = savingTime === item.timeKey;
           return (
             <Card key={item.key} className="border-border/50 bg-card/30">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{item.emoji}</span>
-                    <div>
+                <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                  {/* Emoji + Label */}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="text-xl shrink-0">{item.emoji}</span>
+                    <div className="min-w-0">
                       <p className="text-sm font-medium">{item.label}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {item.time} Uhr
-                      </p>
+                      <p className="text-xs text-muted-foreground">{item.description}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Label htmlFor={item.key} className="text-xs text-muted-foreground">
-                      {isEnabled ? "Auto-Send aktiv" : "Manuell"}
+
+                  {/* Time input */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="relative">
+                      <input
+                        type="time"
+                        value={currentTime}
+                        onChange={(e) => handleTimeChange(item.timeKey, e.target.value)}
+                        onBlur={() => handleTimeBlur(item.timeKey)}
+                        className="h-8 w-[110px] rounded-md border border-border/60 bg-background/60 px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors hover:border-border cursor-text"
+                        disabled={isSavingThis}
+                      />
+                      {isSavingThis && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/60 rounded-md">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">Uhr</span>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="hidden sm:block h-6 w-px bg-border/50 shrink-0" />
+
+                  {/* Auto-Send toggle */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Label htmlFor={item.key} className="text-xs text-muted-foreground cursor-pointer select-none">
+                      {isEnabled ? (
+                        <span className="text-emerald-400 font-medium">Auto</span>
+                      ) : (
+                        <span>Manuell</span>
+                      )}
                     </Label>
                     <Switch
                       id={item.key}

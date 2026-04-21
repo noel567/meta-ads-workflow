@@ -363,3 +363,9 @@
 - [x] Frontend: Post-History (letzte 7 Tage)
 - [x] Sidebar-Navigation: "Content Bot" Eintrag (Bot-Icon)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Posting-Zeiten konfigurierbar (April 2026)
+- [x] Frontend: Zeitpicker (input type=time) neben jedem Auto-Send-Toggle in der Einstellungs-Tab
+- [x] Frontend: Sofortiges Speichern der Uhrzeit via updateSettings Mutation (onBlur)
+- [x] Frontend: Aktualisierte Zeiten werden in der Heute-Ansicht (PostCard) reflektiert
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
