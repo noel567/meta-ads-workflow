@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Upload,
@@ -17,6 +18,7 @@ import {
   Clock,
   HardDrive,
   Unlink,
+  ListChecks,
 } from "lucide-react";
 import {
   Table,
@@ -45,12 +47,12 @@ function formatDate(dateStr: string): string {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    pending:     { label: "Ausstehend",   variant: "outline" },
+    pending:     { label: "Ausstehend",    variant: "outline" },
     downloading: { label: "Herunterladen", variant: "secondary" },
-    uploading:   { label: "Hochladen",    variant: "secondary" },
-    processing:  { label: "Verarbeitung", variant: "secondary" },
-    ready:       { label: "Bereit",       variant: "default" },
-    error:       { label: "Fehler",       variant: "destructive" },
+    uploading:   { label: "Hochladen",     variant: "secondary" },
+    processing:  { label: "Verarbeitung",  variant: "secondary" },
+    ready:       { label: "Bereit",        variant: "default" },
+    error:       { label: "Fehler",        variant: "destructive" },
   };
   const cfg = map[status] ?? { label: status, variant: "outline" };
   return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
@@ -61,12 +63,15 @@ function StatusBadge({ status }: { status: string }) {
 export default function DriveToMeta() {
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set());
   const [refreshingIds, setRefreshingIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
+  const batchAbortRef = useRef(false);
 
   const { data, isLoading, refetch } = trpc.driveToMeta.listVideos.useQuery(undefined, {
-    refetchInterval: 15000, // alle 15s automatisch aktualisieren
+    refetchInterval: 15000,
   });
 
-  // Google Drive Auth-URL (für Re-Auth mit neuem Scope)
   const { data: authUrlData } = trpc.googleDrive.getAuthUrl.useQuery(
     { origin: typeof window !== "undefined" ? window.location.origin : "" },
   );
@@ -76,7 +81,6 @@ export default function DriveToMeta() {
     onError: (e) => toast.error(e.message),
   });
 
-  // Nach OAuth-Redirect: Erfolgsmeldung anzeigen
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("google_connected") === "true") {
@@ -102,9 +106,7 @@ export default function DriveToMeta() {
   const refreshMutation = trpc.driveToMeta.refreshStatus.useMutation({
     onSuccess: (result, variables) => {
       setRefreshingIds(prev => { const s = new Set(prev); s.delete(variables.uploadId); return s; });
-      if (result.status === "ready") {
-        toast.success("Video ist bereit in Meta!");
-      }
+      if (result.status === "ready") toast.success("Video ist bereit in Meta!");
       refetch();
     },
     onError: (_err, variables) => {
@@ -127,8 +129,72 @@ export default function DriveToMeta() {
     refreshMutation.mutate({ uploadId });
   }
 
-  // Bereits hochgeladene Drive-IDs
-  const uploadedDriveIds = new Set((data?.uploads ?? []).map(u => u.driveFileId));
+  // ─── Batch-Upload ────────────────────────────────────────────────────────────
+
+  // Auswählbare Videos: noch nicht erfolgreich hochgeladen (kein ready/processing/downloading/uploading)
+  const uploadedDriveIds = new Set((data?.uploads ?? []).filter(u =>
+    ["ready", "processing", "downloading", "uploading"].includes(u.status)
+  ).map(u => u.driveFileId));
+
+  const selectableVideos = (data?.videos ?? []).filter(v => !uploadedDriveIds.has(v.id));
+
+  const allSelected = selectableVideos.length > 0 && selectableVideos.every(v => selectedIds.has(v.id));
+  const someSelected = selectableVideos.some(v => selectedIds.has(v.id));
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectableVideos.map(v => v.id)));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  }
+
+  async function handleBatchUpload() {
+    const videos = (data?.videos ?? []).filter(v => selectedIds.has(v.id));
+    if (videos.length === 0) return;
+
+    setBatchRunning(true);
+    batchAbortRef.current = false;
+    setBatchProgress({ done: 0, total: videos.length });
+    setSelectedIds(new Set());
+
+    let done = 0;
+    for (const video of videos) {
+      if (batchAbortRef.current) break;
+      setUploadingIds(prev => new Set(prev).add(video.id));
+      try {
+        await new Promise<void>((resolve, reject) => {
+          uploadMutation.mutate(
+            { driveFileId: video.id, fileName: video.name, mimeType: video.mimeType, fileSizeBytes: video.size },
+            {
+              onSuccess: () => resolve(),
+              onError: (e) => reject(e),
+            }
+          );
+        });
+      } catch {
+        // Fehler wurde bereits via onError getoastet; weitermachen
+      }
+      setUploadingIds(prev => { const s = new Set(prev); s.delete(video.id); return s; });
+      done++;
+      setBatchProgress({ done, total: videos.length });
+    }
+
+    setBatchRunning(false);
+    setBatchProgress(null);
+    toast.success(`Batch abgeschlossen: ${done} von ${videos.length} Videos hochgeladen.`);
+    refetch();
+  }
+
+  const selectedCount = selectedIds.size;
 
   return (
     <DashboardLayout>
@@ -165,22 +231,20 @@ export default function DriveToMeta() {
                 Der Lesezugriff auf deinen Drive-Ordner erfordert eine neue Autorisierung mit erweitertem Scope (<code className="text-xs bg-muted px-1 rounded">drive</code>).
                 Klicke auf den Button unten — du wirst kurz zu Google weitergeleitet und danach automatisch zurückgeleitet.
               </p>
-              <div className="flex gap-3">
-                <Button
-                  className="gap-2"
-                  onClick={() => {
-                    if (authUrlData?.url) {
-                      window.location.href = authUrlData.url;
-                    } else {
-                      toast.error("OAuth-URL konnte nicht geladen werden. Bitte Seite neu laden.");
-                    }
-                  }}
-                  disabled={!authUrlData?.url}
-                >
-                  <HardDrive className="h-4 w-4" />
-                  Google Drive verbinden
-                </Button>
-              </div>
+              <Button
+                className="gap-2"
+                onClick={() => {
+                  if (authUrlData?.url) {
+                    window.location.href = authUrlData.url;
+                  } else {
+                    toast.error("OAuth-URL konnte nicht geladen werden. Bitte Seite neu laden.");
+                  }
+                }}
+                disabled={!authUrlData?.url}
+              >
+                <HardDrive className="h-4 w-4" />
+                Google Drive verbinden
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -199,6 +263,51 @@ export default function DriveToMeta() {
               <Unlink className="h-3 w-3" />
               Trennen
             </Button>
+          </div>
+        )}
+
+        {/* Batch-Aktionsleiste (erscheint wenn ≥1 Video ausgewählt) */}
+        {selectedCount > 0 && (
+          <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <ListChecks className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">
+                {selectedCount} Video{selectedCount !== 1 ? "s" : ""} ausgewählt
+              </span>
+              {batchProgress && (
+                <span className="text-xs text-muted-foreground">
+                  ({batchProgress.done}/{batchProgress.total} hochgeladen)
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedIds(new Set())}
+                disabled={batchRunning}
+              >
+                Auswahl aufheben
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleBatchUpload}
+                disabled={batchRunning}
+                className="gap-2"
+              >
+                {batchRunning ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Wird hochgeladen… ({batchProgress?.done ?? 0}/{batchProgress?.total ?? selectedCount})
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-3.5 w-3.5" />
+                    Alle hochladen ({selectedCount})
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -232,6 +341,17 @@ export default function DriveToMeta() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      {/* Alle auswählen */}
+                      {selectableVideos.length > 0 && (
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={toggleSelectAll}
+                          aria-label="Alle auswählen"
+                          className={someSelected && !allSelected ? "opacity-60" : ""}
+                        />
+                      )}
+                    </TableHead>
                     <TableHead>Dateiname</TableHead>
                     <TableHead>Typ</TableHead>
                     <TableHead>Grösse</TableHead>
@@ -243,12 +363,27 @@ export default function DriveToMeta() {
                 <TableBody>
                   {data.videos.map(video => {
                     const isUploading = uploadingIds.has(video.id);
-                    const alreadyUploaded = uploadedDriveIds.has(video.id);
+                    const isAlreadyActive = uploadedDriveIds.has(video.id);
                     const uploadRecord = data.uploads.find(u => u.driveFileId === video.id);
+                    const isSelected = selectedIds.has(video.id);
+                    const isSelectable = !isAlreadyActive && !isUploading;
 
                     return (
-                      <TableRow key={video.id}>
-                        <TableCell className="font-medium max-w-[240px] truncate">
+                      <TableRow
+                        key={video.id}
+                        className={isSelected ? "bg-primary/5" : undefined}
+                        onClick={() => isSelectable && toggleSelect(video.id)}
+                        style={{ cursor: isSelectable ? "pointer" : "default" }}
+                      >
+                        <TableCell onClick={e => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => isSelectable && toggleSelect(video.id)}
+                            disabled={!isSelectable}
+                            aria-label={`${video.name} auswählen`}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium max-w-[220px] truncate">
                           <div className="flex items-center gap-2">
                             <Video className="h-4 w-4 text-muted-foreground shrink-0" />
                             <span className="truncate" title={video.name}>{video.name}</span>
@@ -272,8 +407,8 @@ export default function DriveToMeta() {
                             <Badge variant="outline" className="text-muted-foreground">Nicht hochgeladen</Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          {alreadyUploaded ? (
+                        <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                          {isAlreadyActive ? (
                             <div className="flex items-center justify-end gap-2">
                               {uploadRecord?.metaVideoId && (
                                 <span className="text-xs text-muted-foreground font-mono">
@@ -295,22 +430,21 @@ export default function DriveToMeta() {
                               {uploadRecord?.status === "ready" && (
                                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                               )}
-                              {uploadRecord?.status === "error" && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleUpload(video)}
-                                  disabled={isUploading}
-                                >
-                                  Erneut versuchen
-                                </Button>
-                              )}
                             </div>
+                          ) : uploadRecord?.status === "error" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUpload(video)}
+                              disabled={isUploading}
+                            >
+                              Erneut versuchen
+                            </Button>
                           ) : (
                             <Button
                               size="sm"
                               onClick={() => handleUpload(video)}
-                              disabled={isUploading}
+                              disabled={isUploading || batchRunning}
                             >
                               {isUploading ? (
                                 <>
@@ -392,7 +526,7 @@ export default function DriveToMeta() {
               <div className="text-sm text-muted-foreground space-y-1">
                 <p><strong className="text-foreground">Hinweis:</strong> Videos werden direkt als Ad-Videos in deinem Meta Ad Account <span className="font-mono text-xs bg-muted px-1 rounded">act_1093241318940799</span> gespeichert.</p>
                 <p>Nach dem Upload verarbeitet Meta das Video (Status: <em>Verarbeitung</em>). Klicke auf <RefreshCw className="h-3 w-3 inline" /> um den Status zu aktualisieren. Sobald der Status <strong>Bereit</strong> anzeigt, kann das Video in Kampagnen verwendet werden.</p>
-                <p>⚠️ Der Ordner <strong>01_Video_Ads</strong> ist aktuell leer. Lade Videos dort hoch, damit sie hier erscheinen.</p>
+                <p>Tipp: Wähle mehrere Videos per Checkbox aus und klicke auf <strong>Alle hochladen</strong> für den Batch-Upload.</p>
               </div>
             </div>
           </CardContent>

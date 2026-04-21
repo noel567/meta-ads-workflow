@@ -300,3 +300,11 @@
 - [x] sendTelegramVideoReadyNotification: Benachrichtigung wenn Status auf "ready" wechselt
 - [x] refreshStatus: Telegram-Benachrichtigung bei Statuswechsel processing → ready
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Batch-Upload Drive → Meta (April 2026)
+- [x] Frontend: Checkbox pro Video-Zeile (Einzel-Auswahl)
+- [x] Frontend: "Alle auswählen" Checkbox im Tabellen-Header
+- [x] Frontend: Aktionsleiste erscheint wenn ≥1 Video ausgewählt (X ausgewählt + "Alle hochladen" Button)
+- [x] Frontend: Batch-Upload sequenziell (ein Video nach dem anderen, mit Fortschrittsanzeige)
+- [x] Frontend: Bereits hochgeladene Videos nicht auswählbar (deaktivierte Checkbox)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
