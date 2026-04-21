@@ -424,3 +424,9 @@
 - [x] createQuoteImage.py: Design nach Beispielbildern (Candlestick rechts oben aufsteigend, links unten gedimmt, Kurve, grosses linksbündiges Zitat)
 - [x] sendQuoteAsImage: Caption entfernt (nur Bild wird gesendet, kein Text)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Quote-Bild Design v2 – KI-Hintergrund (April 2026)
+- [x] KI-Hintergrundbild generiert (realistischer Candlestick-Chart, dunkel, teal/grün, 2048x2048)
+- [x] createQuoteImage.py: KI-Hintergrund als Basis, Pillow legt Logo/Titel/Zitat/Autor darüber
+- [x] Test-Bild erstellt und an Telegram gesendet (Message ID: 16)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
