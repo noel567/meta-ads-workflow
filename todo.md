@@ -419,3 +419,8 @@
 - [x] Backend: sendPost Prozedur – quote-Typ verwendet sendQuoteAsImage statt sendTelegramMessage
 - [x] Backend: runContentBotScheduler – quote-Typ verwendet sendQuoteAsImage
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Quote-Bild Design überarbeiten (April 2026)
+- [x] createQuoteImage.py: Design nach Beispielbildern (Candlestick rechts oben aufsteigend, links unten gedimmt, Kurve, grosses linksbündiges Zitat)
+- [x] sendQuoteAsImage: Caption entfernt (nur Bild wird gesendet, kein Text)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

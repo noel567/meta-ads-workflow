@@ -59,10 +59,13 @@ async function sendTelegramPhoto(imgPath: string, caption: string): Promise<stri
     const imgBuffer = readFileSync(imgPath);
     const boundary = `----FormBoundary${Date.now()}`;
     const CRLF = "\r\n";
+    const captionPart = caption
+      ? `--${boundary}${CRLF}Content-Disposition: form-data; name="parse_mode"${CRLF}${CRLF}HTML${CRLF}` +
+        `--${boundary}${CRLF}Content-Disposition: form-data; name="caption"${CRLF}${CRLF}${caption}${CRLF}`
+      : "";
     const textPart = Buffer.from(
       `--${boundary}${CRLF}Content-Disposition: form-data; name="chat_id"${CRLF}${CRLF}${chatId}${CRLF}` +
-      `--${boundary}${CRLF}Content-Disposition: form-data; name="parse_mode"${CRLF}${CRLF}HTML${CRLF}` +
-      `--${boundary}${CRLF}Content-Disposition: form-data; name="caption"${CRLF}${CRLF}${caption}${CRLF}`
+      captionPart
     );
     const photoHeader = Buffer.from(
       `--${boundary}${CRLF}Content-Disposition: form-data; name="photo"; filename="quote.png"${CRLF}Content-Type: image/png${CRLF}${CRLF}`
@@ -107,14 +110,8 @@ async function sendQuoteAsImage(quoteText: string, userId: number): Promise<{ me
     const { url } = await storagePut(key, imgBuffer, "image/png");
     imageUrl = url;
 
-    // Caption mit Kommentar
-    const commentMatch = quoteText.match(/\u2014[^\n]+\n+([\s\S]+?)\n*\uD83D/);
-    const comment = commentMatch?.[1]?.trim() ?? "";
-    const caption = comment
-      ? `\uD83D\uDCAC <b>Quote of the Day</b>\n\n<i>${comment}</i>\n\n\uD83D\uDE80 EasySignals \u2013 Wir spielen das langfristige Spiel.`
-      : `\uD83D\uDCAC <b>Quote of the Day</b>\n\n\uD83D\uDE80 EasySignals \u2013 Wir spielen das langfristige Spiel.`;
-
-    const messageId = await sendTelegramPhoto(imgPath, caption);
+    // Nur Bild senden, kein Caption-Text
+    const messageId = await sendTelegramPhoto(imgPath, "");
     return { messageId, imageUrl };
   } catch (e) {
     console.error("[ContentBot] sendQuoteAsImage failed:", e);
