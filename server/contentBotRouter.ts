@@ -5,10 +5,10 @@ import { getDb } from "./db";
 import { contentPosts, contentBotSettings } from "../drizzle/schema";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// --- Types ---
 type PostType = "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap";
 
-// ─── Telegram Helper ──────────────────────────────────────────────────────────
+// --- Telegram Helper ---
 async function sendTelegramMessage(text: string): Promise<string | null> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -29,7 +29,7 @@ async function sendTelegramMessage(text: string): Promise<string | null> {
   }
 }
 
-// ─── KI-Prompts pro Post-Typ ──────────────────────────────────────────────────
+// --- KI-Prompts pro Post-Typ ----
 function getSystemPrompt(): string {
   return `Du bist Livio Swiss, Gründer von EasySignals – einem Schweizer Trading-Signal-Dienst.
 Du schreibst Telegram-Posts für den EasySignals Free Channel.
@@ -81,7 +81,7 @@ Erwähne die morgigen Möglichkeiten.`;
   }
 }
 
-// ─── Post generieren ──────────────────────────────────────────────────────────
+// --- Post generieren ---
 async function generatePostText(type: PostType): Promise<string> {
   const response = await invokeLLM({
     messages: [
@@ -91,16 +91,48 @@ async function generatePostText(type: PostType): Promise<string> {
   });
   return (response.choices[0]?.message?.content as string) ?? "";
 }
+// --- Zeitzone: Europe/Zurich ----
+const TZ = "Europe/Zurich";
 
-// ─── Scheduled time für heute berechnen ──────────────────────────────────────
-function getScheduledTime(timeStr: string): Date {
-  const [hours, minutes] = timeStr.split(":").map(Number);
-  const d = new Date();
-  d.setHours(hours, minutes, 0, 0);
-  return d;
+/** Gibt das aktuelle Datum als YYYY-MM-DD in Schweizer Zeit zurück */
+function zurichDateStr(date: Date = new Date()): string {
+  return date.toLocaleDateString("sv-SE", { timeZone: TZ }); // sv-SE liefert ISO-Format
 }
 
-// ─── DB Helpers ───────────────────────────────────────────────────────────────
+/** Baut ein Date-Objekt für "HH:MM Uhr Schweizer Zeit am gegebenen Datum" */
+function zurichTimeToDate(dateStr: string, timeStr: string): Date {
+  // Wir konstruieren einen ISO-String mit Offset-Berechnung via Intl
+  // Trick: Erstelle ein Datum in UTC, das in Zurich-Zeit dem gewünschten Wert entspricht
+  const [h, m] = timeStr.split(":").map(Number);
+  // Erstelle einen Zeitstempel in Zurich-Zeit durch Intl.DateTimeFormat
+  const [year, month, day] = dateStr.split("-").map(Number);
+  // Nutze den UTC-Offset für Europe/Zurich zum gewünschten Zeitpunkt
+  const approx = new Date(Date.UTC(year, month - 1, day, h, m, 0));
+  // Berechne den tatsächlichen Zurich-Offset für diesen Zeitpunkt
+  const zurichStr = approx.toLocaleString("en-US", { timeZone: TZ, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit" });
+// --- Parse zurück ---
+  const [datePart, timePart] = zurichStr.split(", ");
+  const [mStr, dStr, yStr] = datePart.split("/");
+  const [hStr, minStr, sStr] = timePart.split(":");
+  const zurichUtc = new Date(Date.UTC(
+    parseInt(yStr), parseInt(mStr) - 1, parseInt(dStr),
+    parseInt(hStr) % 24, parseInt(minStr), parseInt(sStr)
+  ));
+  // Offset = zurichUtc - approx (in ms)
+  const offset = zurichUtc.getTime() - approx.getTime();
+  // Korrigiertes UTC-Datum: wenn wir approx um -offset verschieben, ergibt das die Zurich-Zeit
+  return new Date(approx.getTime() - offset);
+}
+
+/** Gibt ein Date-Objekt zurück, das "HH:MM Uhr heute in Schweizer Zeit" repräsentiert */
+function getScheduledTime(timeStr: string): Date {
+  const todayZurich = zurichDateStr();
+  return zurichTimeToDate(todayZurich, timeStr);
+}
+
+// --- DB Helpers ---
 async function getSettings(userId: number) {
   const db = await getDb();
   if (!db) return null;
@@ -133,9 +165,9 @@ async function getTodaysPosts(userId: number) {
     .orderBy(contentPosts.scheduledAt);
 }
 
-// ─── Router ───────────────────────────────────────────────────────────────────
+// --- Router ---
 export const contentBotRouter = router({
-  // Einstellungen abrufen
+// --- Einstellungen abrufen ---
   getSettings: protectedProcedure.query(async ({ ctx }) => {
     const settings = await getSettings(ctx.user.id);
     return settings ?? {
@@ -152,7 +184,7 @@ export const contentBotRouter = router({
     };
   }),
 
-  // Einstellungen speichern
+// --- Einstellungen speichern ---
   updateSettings: protectedProcedure
     .input(z.object({
       autoSendMindset: z.boolean().optional(),
@@ -171,7 +203,7 @@ export const contentBotRouter = router({
       return { success: true };
     }),
 
-  // Heutige Posts abrufen
+// --- Heutige Posts abrufen ---
   getTodaysPosts: protectedProcedure.query(async ({ ctx }) => {
     return getTodaysPosts(ctx.user.id);
   }),
@@ -249,7 +281,7 @@ export const contentBotRouter = router({
     return results;
   }),
 
-  // Post jetzt senden
+// --- Post jetzt senden ---
   sendPost: protectedProcedure
     .input(z.object({ postId: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -288,7 +320,7 @@ export const contentBotRouter = router({
       return { success: true };
     }),
 
-  // Post löschen
+// --- Post löschen ---
   deletePost: protectedProcedure
     .input(z.object({ postId: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -361,7 +393,7 @@ export const contentBotRouter = router({
   }),
 });
 
-// ─── Scheduler-Funktion (wird von scheduler.ts aufgerufen) ───────────────────
+// --- Scheduler-Funktion (wird von scheduler.ts aufgerufen) ----
 export async function runContentBotScheduler(userId: number): Promise<void> {
   const db = await getDb();
   if (!db) return;
@@ -384,18 +416,21 @@ export async function runContentBotScheduler(userId: number): Promise<void> {
     evening_recap: settings.timeEveningRecap,
   };
 
-  // Welcher Post-Typ ist jetzt fällig? (±5 Minuten Toleranz)
+  // Welcher Post-Typ ist jetzt fällig? (±5 Minuten Toleranz, Schweizer Zeit)
+  const todayZurich = zurichDateStr(now);
+// --- Tagesgrenzen in Schweizer Zeit ---
+  const dayStart = zurichTimeToDate(todayZurich, "00:00");
+  const dayEnd = zurichTimeToDate(todayZurich, "23:59");
+
   for (const [type, timeStr] of Object.entries(timeMap) as [PostType, string][]) {
     if (!autoMap[type]) continue;
-    const [h, m] = timeStr.split(":").map(Number);
-    const scheduled = new Date();
-    scheduled.setHours(h, m, 0, 0);
+    const scheduled = zurichTimeToDate(todayZurich, timeStr);
     const diffMs = Math.abs(now.getTime() - scheduled.getTime());
     if (diffMs > 5 * 60 * 1000) continue; // nicht im 5-Minuten-Fenster
 
-    // Wurde dieser Typ heute schon gesendet?
-    const start = new Date(); start.setHours(0, 0, 0, 0);
-    const end = new Date(); end.setHours(23, 59, 59, 999);
+    // Wurde dieser Typ heute schon gesendet? (Tagesgrenzen in Schweizer Zeit)
+    const start = dayStart;
+    const end = dayEnd;
     const existing = await db.select().from(contentPosts)
       .where(and(
         eq(contentPosts.userId, userId),
@@ -406,7 +441,7 @@ export async function runContentBotScheduler(userId: number): Promise<void> {
       )).limit(1);
     if (existing.length > 0) continue;
 
-    // Generieren und senden
+// --- Generieren und senden ---
     console.log(`[ContentBot] Generiere ${type} Post für User ${userId}...`);
     const text = await generatePostText(type);
     const result = await db.insert(contentPosts).values({

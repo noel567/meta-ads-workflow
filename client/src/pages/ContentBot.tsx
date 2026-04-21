@@ -513,7 +513,7 @@ function SchedulerStatusPanel() {
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        Scheduler prüft alle 5 Minuten (±5 Min Toleranz). Zeiten in Serverzeit (UTC).
+        Scheduler prüft alle 5 Minuten (±5 Min Toleranz). Alle Zeiten in Schweizer Zeit (CEST/CET).
       </p>
     </div>
   );

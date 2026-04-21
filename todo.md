@@ -384,3 +384,10 @@
 - [x] Frontend: SchedulerStatusPanel als eigener Tab (Tabelle aller Post-Typen mit Countdown)
 - [x] Frontend: Übersichts-Banner mit nächstem Auto-Post im Scheduler-Tab
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Zeitzone Europe/Zurich (April 2026)
+- [x] Backend: getSchedulerStatus – nextAt Berechnung auf Europe/Zurich umstellen
+- [x] Backend: runContentBotScheduler – Vergleich der konfigurierten Uhrzeit in Schweizer Zeit
+- [x] Backend: getScheduledTime + zurichTimeToDate Hilfsfunktionen für korrekte TZ-Konvertierung
+- [x] Frontend: Zeitzone-Hinweis im Scheduler-Tab auf "Schweizer Zeit (CEST/CET)" geändert
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
