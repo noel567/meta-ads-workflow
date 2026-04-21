@@ -16,6 +16,86 @@ const META_BASE = "https://graph.facebook.com/v19.0";
 const META_TOKEN = process.env.META_ACCESS_TOKEN ?? "";
 const AD_ACCOUNT = "act_1093241318940799";
 
+// ─── Telegram-Benachrichtigung ──────────────────────────────────────────────
+async function sendTelegramVideoNotification(params: {
+  fileName: string;
+  metaVideoId?: string;
+  fileSizeBytes?: number | null;
+  success: boolean;
+  errorMessage?: string;
+}): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!botToken || !chatId) return;
+
+  const sizeStr = params.fileSizeBytes
+    ? params.fileSizeBytes < 1024 * 1024
+      ? `${(params.fileSizeBytes / 1024).toFixed(1)} KB`
+      : `${(params.fileSizeBytes / (1024 * 1024)).toFixed(1)} MB`
+    : null;
+
+  const text = params.success
+    ? [
+        `✅ <b>Video erfolgreich zu Meta hochgeladen</b>`,
+        ``,
+        `🎬 <b>Datei:</b> ${params.fileName}`,
+        params.metaVideoId ? `🆔 <b>Meta Video-ID:</b> <code>${params.metaVideoId}</code>` : null,
+        sizeStr ? `💾 <b>Grösse:</b> ${sizeStr}` : null,
+        ``,
+        `⏳ Meta verarbeitet das Video — in wenigen Minuten einsatzbereit.`,
+        ``,
+        `<i>${new Date().toLocaleString("de-CH", { timeZone: "Europe/Zurich" })} Uhr</i>`,
+      ].filter(Boolean).join("\n")
+    : [
+        `❌ <b>Video-Upload fehlgeschlagen</b>`,
+        ``,
+        `🎬 <b>Datei:</b> ${params.fileName}`,
+        `⚠️ <b>Fehler:</b> ${params.errorMessage ?? "unbekannt"}`,
+        ``,
+        `<i>${new Date().toLocaleString("de-CH", { timeZone: "Europe/Zurich" })} Uhr</i>`,
+      ].join("\n");
+
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+    });
+  } catch (e) {
+    console.error("[DriveToMeta] Telegram-Benachrichtigung fehlgeschlagen:", e);
+  }
+}
+
+async function sendTelegramVideoReadyNotification(params: {
+  fileName: string;
+  metaVideoId: string;
+}): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!botToken || !chatId) return;
+
+  const text = [
+    `🟢 <b>Meta Video ist bereit!</b>`,
+    ``,
+    `🎬 <b>Datei:</b> ${params.fileName}`,
+    `🆔 <b>Meta Video-ID:</b> <code>${params.metaVideoId}</code>`,
+    ``,
+    `Das Video kann jetzt in Meta-Kampagnen als Ad Creative verwendet werden.`,
+    ``,
+    `<i>${new Date().toLocaleString("de-CH", { timeZone: "Europe/Zurich" })} Uhr</i>`,
+  ].join("\n");
+
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+    });
+  } catch (e) {
+    console.error("[DriveToMeta] Telegram-Bereit-Benachrichtigung fehlgeschlagen:", e);
+  }
+}
+
 // ─── Drive: Videos im Ordner auflisten ───────────────────────────────────────
 async function listDriveVideos(accessToken: string): Promise<Array<{
   id: string;
@@ -229,12 +309,27 @@ export const driveToMetaRouter = router({
           })
           .where(eq(driveMetaUploads.id, uploadId));
 
-        return { success: true, uploadId, metaVideoId: videoId };
+        // Telegram-Benachrichtigung: Upload erfolgreich
+        await sendTelegramVideoNotification({
+          fileName: input.fileName,
+          metaVideoId: videoId,
+          fileSizeBytes: input.fileSizeBytes,
+          success: true,
+        });
 
+        return { success: true, uploadId, metaVideoId: videoId };
       } catch (err: any) {
         await db.update(driveMetaUploads)
           .set({ status: "error", errorMessage: err.message, updatedAt: new Date() })
           .where(eq(driveMetaUploads.id, uploadId));
+
+        // Telegram-Benachrichtigung: Upload fehlgeschlagen
+        await sendTelegramVideoNotification({
+          fileName: input.fileName,
+          success: false,
+          errorMessage: err.message,
+        });
+
         throw err;
       }
     }),
@@ -262,13 +357,21 @@ export const driveToMetaRouter = router({
       if (metaStatus.status === "ready") newStatus = "ready";
       else if (metaStatus.status === "error" || metaStatus.status === "unknown") newStatus = "error";
 
-      await db.update(driveMetaUploads)
+       await db.update(driveMetaUploads)
         .set({
           status: newStatus,
           errorMessage: newStatus === "error" ? `Meta-Status: ${metaStatus.status}` : null,
           updatedAt: new Date(),
         })
         .where(eq(driveMetaUploads.id, input.uploadId));
+
+      // Telegram-Benachrichtigung wenn Video jetzt bereit ist (Statuswechsel processing → ready)
+      if (newStatus === "ready" && upload.status !== "ready" && upload.metaVideoId) {
+        await sendTelegramVideoReadyNotification({
+          fileName: upload.fileName,
+          metaVideoId: upload.metaVideoId,
+        });
+      }
 
       return { status: newStatus, metaStatus: metaStatus.status };
     }),

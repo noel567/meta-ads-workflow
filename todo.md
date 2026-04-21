@@ -292,3 +292,11 @@
 - [x] Frontend: Upload-Protokoll-Tabelle (hochgeladen, verarbeitet, Fehler)
 - [x] Sidebar-Navigation: "Drive → Meta" Eintrag (CloudUpload-Icon)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Telegram-Benachrichtigung bei Video-Upload (April 2026)
+- [x] driveToMetaRouter: sendTelegramVideoNotification nach erfolgreichem uploadToMeta
+- [x] Nachricht bei Erfolg: Dateiname, Meta Video-ID, Dateigrösse
+- [x] Nachricht bei Fehler: Dateiname + Fehlermeldung
+- [x] sendTelegramVideoReadyNotification: Benachrichtigung wenn Status auf "ready" wechselt
+- [x] refreshStatus: Telegram-Benachrichtigung bei Statuswechsel processing → ready
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
