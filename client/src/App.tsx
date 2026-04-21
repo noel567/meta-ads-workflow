@@ -20,6 +20,7 @@ import MetaAdsDashboard from "./pages/MetaAdsDashboard";
 import BudgetRules from "./pages/BudgetRules";
 import DriveToMeta from "./pages/DriveToMeta";
 import ApiKeys from "./pages/ApiKeys";
+import ContentBot from "./pages/ContentBot";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/budget-rules" component={BudgetRules} />
       <Route path="/drive-to-meta" component={DriveToMeta} />
       <Route path="/api-keys" component={ApiKeys} />
+      <Route path="/content-bot" component={ContentBot} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

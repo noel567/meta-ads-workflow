@@ -26,6 +26,7 @@ import { metaInsightsRouter } from "./metaInsightsRouter";
 import { adCommentsRouter } from "./adCommentsRouter";
 import { budgetRulesRouter } from "./budgetRulesRouter";
 import { driveToMetaRouter } from "./driveToMetaRouter";
+import { contentBotRouter } from "./contentBotRouter";
 import { createApiKey, getApiKeysByUser, revokeApiKey } from "./db";
 import { ENV } from "./_core/env";
 
@@ -1471,6 +1472,7 @@ export const appRouter = router({
   adComments: adCommentsRouter,
   budgetRules: budgetRulesRouter,
   driveToMeta: driveToMetaRouter,
+  contentBot: contentBotRouter,
   apiKeys: router({
     create: protectedProcedure
       .input(z.object({ name: z.string().min(1).max(128) }))

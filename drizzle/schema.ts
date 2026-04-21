@@ -532,3 +532,37 @@ export const apiKeys = mysqlTable("api_keys", {
 });
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+// ─── Telegram Content Bot ─────────────────────────────────────────────────────
+export const contentPosts = mysqlTable("content_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: mysqlEnum("type", ["mindset", "recap", "social_proof", "scarcity", "evening_recap"]).notNull(),
+  text: text("text").notNull(),
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  sentAt: timestamp("sentAt"),
+  status: mysqlEnum("status", ["pending", "sent", "error", "skipped"]).default("pending").notNull(),
+  telegramMessageId: varchar("telegramMessageId", { length: 64 }),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ContentPost = typeof contentPosts.$inferSelect;
+export type InsertContentPost = typeof contentPosts.$inferInsert;
+
+export const contentBotSettings = mysqlTable("content_bot_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  autoSendMindset: boolean("autoSendMindset").default(false).notNull(),
+  autoSendRecap: boolean("autoSendRecap").default(false).notNull(),
+  autoSendSocialProof: boolean("autoSendSocialProof").default(false).notNull(),
+  autoSendScarcity: boolean("autoSendScarcity").default(false).notNull(),
+  autoSendEveningRecap: boolean("autoSendEveningRecap").default(false).notNull(),
+  timeMindset: varchar("timeMindset", { length: 5 }).default("07:30").notNull(),
+  timeRecap: varchar("timeRecap", { length: 5 }).default("10:00").notNull(),
+  timeSocialProof: varchar("timeSocialProof", { length: 5 }).default("13:00").notNull(),
+  timeScarcity: varchar("timeScarcity", { length: 5 }).default("17:00").notNull(),
+  timeEveningRecap: varchar("timeEveningRecap", { length: 5 }).default("20:00").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type ContentBotSettings = typeof contentBotSettings.$inferSelect;
+export type InsertContentBotSettings = typeof contentBotSettings.$inferInsert;

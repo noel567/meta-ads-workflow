@@ -344,3 +344,22 @@
 - [x] POST /api/v1/budget-rules/run — Alle Budget-Regeln jetzt ausführen (async, 202)
 - [x] Frontend: POST/DELETE/PATCH-Endpunkte in API-Dokumentation mit farbcodierten Badges (blau/rot/gelb)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Telegram Content Bot – Automatische Posts (April 2026)
+- [x] DB: content_posts Tabelle (type, text, scheduledAt, sentAt, status, telegramMessageId)
+- [x] DB: content_bot_settings Tabelle (autoSend per Post-Typ, aktive Uhrzeiten)
+- [x] Server: contentBot.generatePost – KI generiert Post nach EasySignals-Stil (5 Typen)
+- [x] Server: contentBot.sendPost – Post via Telegram Bot API senden
+- [x] Server: contentBot.getPosts – Post-Liste abrufen (heute + History)
+- [x] Server: contentBot.updateSettings – Auto-Senden Einstellungen speichern
+- [x] Scheduler: alle 5 Minuten prüfen ob ein Post fällig ist (±5 Min Toleranz)
+- [x] KI-Prompts: Mindset, Daily Recap, Social Proof, Scarcity/CTA, Abend-Recap
+- [x] KI-Stil: kurze Zeilen, Schweizerdeutsch-Einflüsse, Livio-Persona, gezielte Emojis
+- [x] Frontend: Content Bot Seite (/content-bot)
+- [x] Frontend: Heutiger Post-Kalender (5 Slots mit Status: ausstehend/gesendet/fehler)
+- [x] Frontend: Post-Vorschau mit Text und "Jetzt senden" Button
+- [x] Frontend: "Alle heute generieren" Button
+- [x] Frontend: Auto-Senden Toggle pro Post-Typ
+- [x] Frontend: Post-History (letzte 7 Tage)
+- [x] Sidebar-Navigation: "Content Bot" Eintrag (Bot-Icon)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

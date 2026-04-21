@@ -6,6 +6,7 @@
 import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor, getGoogleDriveConnection, updateAdBatch, createDocument, getTelegramSettings, createTelegramPost, updateTelegramPost } from "./db";
 import { saveInsights, saveAiAnalysis, getLatestAiAnalysis } from "./metaInsightsDb";
 import { runAllBudgetRules } from "./budgetRulesRouter";
+import { runContentBotScheduler } from "./contentBotRouter";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 
@@ -643,6 +644,12 @@ export function startScheduler(userId: number) {
           console.error(`[Scheduler] Daily Telegram post failed:`, e);
         }
       }
+    }
+    // Content Bot: alle 5 Minuten prüfen ob ein Post fällig ist
+    try {
+      await runContentBotScheduler(userId);
+    } catch (e) {
+      console.error(`[Scheduler] Content Bot Scheduler failed:`, e);
     }
   }, 5 * 60 * 1000); // Check every 5 minutes
 

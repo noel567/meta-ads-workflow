@@ -40,6 +40,7 @@ import {
   Sliders,
   CloudUpload,
   Key,
+  Bot,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -61,6 +62,7 @@ const menuItems = [
   { icon: CloudUpload, label: "Drive → Meta", path: "/drive-to-meta" },
   { icon: Key, label: "API-Keys", path: "/api-keys" },
   { icon: Send, label: "Telegram Bot", path: "/telegram" },
+  { icon: Bot, label: "Content Bot", path: "/content-bot" },
   { icon: BookOpen, label: "Transkripte", path: "/transcripts" },
   { icon: MonitorPlay, label: "Teleprompter", path: "/teleprompter" },
   { icon: FileText, label: "Dokumente", path: "/documents" },
