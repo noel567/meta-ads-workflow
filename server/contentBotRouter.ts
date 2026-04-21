@@ -110,12 +110,52 @@ Verwende HTML-Formatierung: <b> für Fettdruck, <i> für Kursivschrift.`;
   }
 }
 
+function getQuoteDeduplicationNote(recentTexts: string[]): string {
+  if (recentTexts.length === 0) return "";
+  // Extrahiere nur die Zitat-Zeilen (Zeilen die mit „ beginnen oder nach dem Autor stehen)
+  const snippets = recentTexts
+    .map((t) => {
+      const lines = t.split("\n").filter((l) => l.trim().length > 0);
+      // Suche die Zeile mit dem Zitat („...“) oder nehme die erste inhaltliche Zeile
+      const quoteLine = lines.find((l) => l.includes("„") || l.includes('"')) ?? lines[1] ?? "";
+      return quoteLine.slice(0, 80).trim();
+    })
+    .filter(Boolean);
+  if (snippets.length === 0) return "";
+  return `\n\nWICHTIG: Diese Zitate wurden in den letzten 30 Tagen bereits verwendet und dürfen NICHT wiederholt werden:\n${snippets.map((s, i) => `${i + 1}. ${s}`).join("\n")}\nWähle ein komplett anderes Zitat von einem anderen Autor oder einem anderen Thema.`;
+}
+
 // --- Post generieren ---
-async function generatePostText(type: PostType): Promise<string> {
+async function generatePostText(type: PostType, userId?: number): Promise<string> {
+  let userPrompt = getUserPrompt(type);
+
+  // Duplikat-Schutz fuer Quote of the Day: letzte 30 Tage laden
+  if (type === "quote" && userId !== undefined) {
+    const db = await getDb();
+    if (db) {
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      const recentQuotes = await db
+        .select({ text: contentPosts.text })
+        .from(contentPosts)
+        .where(
+          and(
+            eq(contentPosts.userId, userId),
+            eq(contentPosts.type, "quote"),
+            gte(contentPosts.createdAt, since),
+          )
+        )
+        .orderBy(desc(contentPosts.createdAt))
+        .limit(30);
+      const recentTexts = recentQuotes.map((r) => r.text);
+      userPrompt += getQuoteDeduplicationNote(recentTexts);
+    }
+  }
+
   const response = await invokeLLM({
     messages: [
       { role: "system", content: getSystemPrompt() },
-      { role: "user", content: getUserPrompt(type) },
+      { role: "user", content: userPrompt },
     ],
   });
   return (response.choices[0]?.message?.content as string) ?? "";
@@ -273,7 +313,7 @@ export const contentBotRouter = router({
         evening_recap: settings?.timeEveningRecap ?? "20:00",
         quote: (settings as any)?.timeQuote ?? "09:00",
       };
-      const text = await generatePostText(input.type);
+      const text = await generatePostText(input.type, ctx.user.id);
       const db = await getDb();
       if (!db) throw new Error("Datenbank nicht verfügbar");
       const result = await db.insert(contentPosts).values({
@@ -303,7 +343,7 @@ export const contentBotRouter = router({
     if (!db) throw new Error("Datenbank nicht verfügbar");
     const results = [];
     for (const type of types) {
-      const text = await generatePostText(type);
+      const text = await generatePostText(type, ctx.user.id);
       const result = await db.insert(contentPosts).values({
         userId: ctx.user.id,
         type,
@@ -481,7 +521,7 @@ export async function runContentBotScheduler(userId: number): Promise<void> {
 
 // --- Generieren und senden ---
     console.log(`[ContentBot] Generiere ${type} Post für User ${userId}...`);
-    const text = await generatePostText(type);
+    const text = await generatePostText(type, userId);
     const result = await db.insert(contentPosts).values({
       userId,
       type,

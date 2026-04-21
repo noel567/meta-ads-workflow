@@ -403,3 +403,11 @@
 - [x] Frontend: POST_TYPE_CONFIG um "quote" erweitert
 - [x] Frontend: Quote-Slot in Heute-Ansicht und Einstellungen (Auto-Send Toggle + Zeitpicker)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Quote Duplikat-Schutz (April 2026)
+- [x] Backend: Letzte 30 Tage Quote-Posts aus DB laden (type="quote", alle Status)
+- [x] Backend: Gesendete Zitate als Kontext an KI-Prompt übergeben ("Diese Zitate nicht wiederholen")
+- [x] Backend: generatePostText(type, userId) – userId optional, bei quote wird DB-Abfrage ausgeführt
+- [x] Backend: getQuoteDeduplicationNote() extrahiert Zitat-Snippets und baut Warnung
+- [x] Backend: userId in generatePost, generateAllToday und runContentBotScheduler weitergegeben
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
