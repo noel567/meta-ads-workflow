@@ -567,7 +567,7 @@ const googleDriveRouter = router({
         redirect_uri: redirectUri,
         response_type: "code",
         scope: [
-          "https://www.googleapis.com/auth/drive.file",
+          "https://www.googleapis.com/auth/drive",           // Vollzugriff: alle Dateien lesen + schreiben
           "https://www.googleapis.com/auth/userinfo.email",
         ].join(" "),
         access_type: "offline",

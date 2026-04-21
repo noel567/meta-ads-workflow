@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,8 @@ import {
   FolderOpen,
   ExternalLink,
   Clock,
+  HardDrive,
+  Unlink,
 } from "lucide-react";
 import {
   Table,
@@ -63,6 +65,26 @@ export default function DriveToMeta() {
   const { data, isLoading, refetch } = trpc.driveToMeta.listVideos.useQuery(undefined, {
     refetchInterval: 15000, // alle 15s automatisch aktualisieren
   });
+
+  // Google Drive Auth-URL (für Re-Auth mit neuem Scope)
+  const { data: authUrlData } = trpc.googleDrive.getAuthUrl.useQuery(
+    { origin: typeof window !== "undefined" ? window.location.origin : "" },
+  );
+
+  const disconnectMutation = trpc.googleDrive.disconnect.useMutation({
+    onSuccess: () => { toast.success("Google Drive getrennt"); refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // Nach OAuth-Redirect: Erfolgsmeldung anzeigen
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google_connected") === "true") {
+      toast.success("Google Drive erfolgreich verbunden!");
+      refetch();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   const uploadMutation = trpc.driveToMeta.uploadToMeta.useMutation({
     onSuccess: (result, variables) => {
@@ -129,20 +151,55 @@ export default function DriveToMeta() {
           </Button>
         </div>
 
-        {/* Nicht verbunden */}
+        {/* Nicht verbunden → Re-Auth-Karte */}
         {!isLoading && data && !data.connected && (
           <Card className="border-amber-500/30 bg-amber-500/5">
-            <CardContent className="pt-6 flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
-              <div>
-                <p className="font-medium text-sm">Google Drive nicht verbunden</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Bitte zuerst Google Drive in den <a href="/settings" className="underline">Einstellungen</a> verbinden.
-                  Nach der Verbindung muss der Scope <strong>drive</strong> (Vollzugriff) gewährt werden.
-                </p>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 text-amber-400">
+                <AlertCircle className="h-5 w-5" />
+                Google Drive neu verbinden
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Der Lesezugriff auf deinen Drive-Ordner erfordert eine neue Autorisierung mit erweitertem Scope (<code className="text-xs bg-muted px-1 rounded">drive</code>).
+                Klicke auf den Button unten — du wirst kurz zu Google weitergeleitet und danach automatisch zurückgeleitet.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  className="gap-2"
+                  onClick={() => {
+                    if (authUrlData?.url) {
+                      window.location.href = authUrlData.url;
+                    } else {
+                      toast.error("OAuth-URL konnte nicht geladen werden. Bitte Seite neu laden.");
+                    }
+                  }}
+                  disabled={!authUrlData?.url}
+                >
+                  <HardDrive className="h-4 w-4" />
+                  Google Drive verbinden
+                </Button>
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Verbunden → Trennen-Option */}
+        {!isLoading && data?.connected && (
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-xs text-muted-foreground">Google Drive verbunden</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive gap-1.5 h-7 text-xs"
+              onClick={() => disconnectMutation.mutate()}
+              disabled={disconnectMutation.isPending}
+            >
+              <Unlink className="h-3 w-3" />
+              Trennen
+            </Button>
+          </div>
         )}
 
         {/* Videos im Drive-Ordner */}
