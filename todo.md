@@ -411,3 +411,11 @@
 - [x] Backend: getQuoteDeduplicationNote() extrahiert Zitat-Snippets und baut Warnung
 - [x] Backend: userId in generatePost, generateAllToday und runContentBotScheduler weitergegeben
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Quote als Bild senden (April 2026)
+- [x] Backend: createQuoteImage.py – Pillow-Script erstellt 1080x1080 Bild (dunkler BG, Candlesticks, Logo, Zitat, Autor)
+- [x] Backend: sendTelegramPhoto() – sendet Bild via multipart/form-data an Telegram sendPhoto API
+- [x] Backend: sendQuoteAsImage() – extrahiert Zitat+Autor aus Text, erstellt Bild, lädt auf S3 hoch, sendet an Telegram
+- [x] Backend: sendPost Prozedur – quote-Typ verwendet sendQuoteAsImage statt sendTelegramMessage
+- [x] Backend: runContentBotScheduler – quote-Typ verwendet sendQuoteAsImage
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

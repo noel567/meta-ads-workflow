@@ -1,9 +1,14 @@
 import { z } from "zod";
+import { execSync } from "child_process";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
 import { contentPosts, contentBotSettings } from "../drizzle/schema";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
+import { storagePut } from "./storage";
 
 // --- Types ---
 type PostType = "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap" | "quote";
@@ -26,6 +31,96 @@ async function sendTelegramMessage(text: string): Promise<string | null> {
   } catch (e) {
     console.error("[ContentBot] Telegram send failed:", e);
     return null;
+  }
+}
+
+/** Generiert ein Quote-Bild via Python/Pillow und gibt den Pfad zurueck */
+function createQuoteImageFile(quote: string, author: string): string {
+  const imgPath = join(tmpdir(), `quote_${Date.now()}.png`);
+  const scriptPath = join(__dirname, "createQuoteImage.py");
+  if (!existsSync(scriptPath)) {
+    throw new Error(`Quote-Image-Script nicht gefunden: ${scriptPath}`);
+  }
+  // Sonderzeichen escapen
+  const quoteSafe = quote.replace(/"/g, '\\"');
+  const authorSafe = author.replace(/"/g, '\\"');
+  execSync(`python3 "${scriptPath}" "${quoteSafe}" "${authorSafe}" "${imgPath}"`, {
+    timeout: 30000,
+  });
+  return imgPath;
+}
+
+/** Sendet ein Bild-File als Foto an Telegram */
+async function sendTelegramPhoto(imgPath: string, caption: string): Promise<string | null> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!botToken || !chatId) return null;
+  try {
+    const imgBuffer = readFileSync(imgPath);
+    const boundary = `----FormBoundary${Date.now()}`;
+    const CRLF = "\r\n";
+    const textPart = Buffer.from(
+      `--${boundary}${CRLF}Content-Disposition: form-data; name="chat_id"${CRLF}${CRLF}${chatId}${CRLF}` +
+      `--${boundary}${CRLF}Content-Disposition: form-data; name="parse_mode"${CRLF}${CRLF}HTML${CRLF}` +
+      `--${boundary}${CRLF}Content-Disposition: form-data; name="caption"${CRLF}${CRLF}${caption}${CRLF}`
+    );
+    const photoHeader = Buffer.from(
+      `--${boundary}${CRLF}Content-Disposition: form-data; name="photo"; filename="quote.png"${CRLF}Content-Type: image/png${CRLF}${CRLF}`
+    );
+    const closing = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
+    const body = Buffer.concat([textPart, photoHeader, imgBuffer, closing]);
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: "POST",
+      headers: {
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        "Content-Length": body.length.toString(),
+      },
+      body,
+    });
+    const data = await res.json() as any;
+    if (data.ok) return String(data.result.message_id);
+    console.error("[ContentBot] Telegram sendPhoto error:", data);
+    return null;
+  } catch (e) {
+    console.error("[ContentBot] Telegram sendPhoto failed:", e);
+    return null;
+  }
+}
+
+/** Generiert Quote-Bild und sendet es; gibt messageId zurueck */
+async function sendQuoteAsImage(quoteText: string, userId: number): Promise<{ messageId: string | null; imageUrl: string | null }> {
+  // Zitat und Autor aus dem Text extrahieren (KI-generiertes Format)
+  // Format: "Zitat" \n\n— Autor
+  const quoteMatch = quoteText.match(/["\u201e\u201c]([^"\u201c\u201d]+)["\u201d\u201c]/);
+  const authorMatch = quoteText.match(/[\u2014\-]\s*([A-Z][\w\s.]+)/);
+  const quote = quoteMatch?.[1]?.trim() ?? quoteText.slice(0, 120);
+  const author = authorMatch?.[1]?.trim() ?? "EasySignals";
+
+  let imgPath: string | null = null;
+  let imageUrl: string | null = null;
+
+  try {
+    imgPath = createQuoteImageFile(quote, author);
+    // Bild auf S3 hochladen
+    const imgBuffer = readFileSync(imgPath);
+    const key = `quote-images/${userId}-${Date.now()}.png`;
+    const { url } = await storagePut(key, imgBuffer, "image/png");
+    imageUrl = url;
+
+    // Caption mit Kommentar
+    const commentMatch = quoteText.match(/\u2014[^\n]+\n+([\s\S]+?)\n*\uD83D/);
+    const comment = commentMatch?.[1]?.trim() ?? "";
+    const caption = comment
+      ? `\uD83D\uDCAC <b>Quote of the Day</b>\n\n<i>${comment}</i>\n\n\uD83D\uDE80 EasySignals \u2013 Wir spielen das langfristige Spiel.`
+      : `\uD83D\uDCAC <b>Quote of the Day</b>\n\n\uD83D\uDE80 EasySignals \u2013 Wir spielen das langfristige Spiel.`;
+
+    const messageId = await sendTelegramPhoto(imgPath, caption);
+    return { messageId, imageUrl };
+  } catch (e) {
+    console.error("[ContentBot] sendQuoteAsImage failed:", e);
+    // Fallback: Text senden
+    const messageId = await sendTelegramMessage(quoteText);
+    return { messageId, imageUrl };
   }
 }
 
@@ -361,18 +456,31 @@ export const contentBotRouter = router({
     .input(z.object({ postId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Datenbank nicht verfügbar");
+      if (!db) throw new Error("Datenbank nicht verf\u00fcgbar");
       const rows = await db.select().from(contentPosts)
         .where(and(eq(contentPosts.id, input.postId), eq(contentPosts.userId, ctx.user.id)))
         .limit(1);
       if (!rows[0]) throw new Error("Post nicht gefunden");
       const post = rows[0];
-      const messageId = await sendTelegramMessage(post.text);
+
+      let messageId: string | null = null;
+      let imageUrl: string | null = null;
+
+      if (post.type === "quote") {
+        // Quote als Bild senden
+        const result = await sendQuoteAsImage(post.text, ctx.user.id);
+        messageId = result.messageId;
+        imageUrl = result.imageUrl;
+      } else {
+        messageId = await sendTelegramMessage(post.text);
+      }
+
       if (messageId) {
         await db.update(contentPosts).set({
           status: "sent",
           sentAt: new Date(),
           telegramMessageId: messageId,
+          ...(imageUrl ? { imageUrl } : {}),
         }).where(eq(contentPosts.id, input.postId));
         return { success: true, messageId };
       } else {
@@ -530,15 +638,27 @@ export async function runContentBotScheduler(userId: number): Promise<void> {
       status: "pending",
     });
     const postId = (result as any).insertId as number;
-    const messageId = await sendTelegramMessage(text);
+
+    let messageId: string | null = null;
+    let imageUrl: string | null = null;
+    if (type === "quote") {
+      const res = await sendQuoteAsImage(text, userId);
+      messageId = res.messageId;
+      imageUrl = res.imageUrl;
+    } else {
+      messageId = await sendTelegramMessage(text);
+    }
+
     if (messageId) {
-      await db.update(contentPosts).set({ status: "sent", sentAt: new Date(), telegramMessageId: messageId })
-        .where(eq(contentPosts.id, postId));
-      console.log(`[ContentBot] ✅ ${type} Post gesendet (msg ${messageId})`);
+      await db.update(contentPosts).set({
+        status: "sent", sentAt: new Date(), telegramMessageId: messageId,
+        ...(imageUrl ? { imageUrl } : {}),
+      }).where(eq(contentPosts.id, postId));
+      console.log(`[ContentBot] \u2705 ${type} Post gesendet (msg ${messageId})`);
     } else {
       await db.update(contentPosts).set({ status: "error", errorMessage: "Telegram-Versand fehlgeschlagen" })
         .where(eq(contentPosts.id, postId));
-      console.log(`[ContentBot] ❌ ${type} Post fehlgeschlagen`);
+      console.log(`[ContentBot] \u274c ${type} Post fehlgeschlagen`);
     }
   }
 }
