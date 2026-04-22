@@ -22,11 +22,14 @@ import {
   RefreshCw, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Zap, Target, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight,
   Lightbulb, ChevronRight, Loader2, Play, MessageSquare, Trash2,
-  ExternalLink, Eye, MousePointer, Users, Send, PencilLine, X
+  ExternalLink, Eye, MousePointer, Users, Send, PencilLine, X, ArrowLeft
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 const DATE_PRESETS = [
+  { value: "today", label: "Heute" },
+  { value: "yesterday", label: "Gestern" },
   { value: "last_7d", label: "Letzte 7 Tage" },
   { value: "last_14d", label: "Letzte 14 Tage" },
   { value: "last_30d", label: "Letzte 30 Tage" },
@@ -546,6 +549,7 @@ function CreativeCard({ ad, onSelect }: { ad: any; onSelect: (ad: any) => void }
 }
 
 export default function MetaAdsDashboard() {
+  const [, navigate] = useLocation();
   const [datePreset, setDatePreset] = useState("last_30d");
   const [isSyncing, setIsSyncing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -625,6 +629,11 @@ export default function MetaAdsDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
+          <div className="flex items-center gap-3 mb-1">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2 h-8 px-2">
+              <ArrowLeft className="w-4 h-4 mr-1" /> Dashboard
+            </Button>
+          </div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-blue-400" />
             Meta Ads Dashboard

@@ -451,3 +451,9 @@
 - [x] contentBotRouter.ts: scarcity Prompt CTA auf @easysignal_de_bot geändert
 - [x] Kein anderer Username mehr in den Posts
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Meta Ads Dashboard: Zeitraum Heute/Gestern + Zurück-Button (April 2026)
+- [x] Zeitraum-Dropdown: "Heute" und "Gestern" als Optionen hinzufügen
+- [x] Backend: dateRange-Logik für "today" und "yesterday" implementieren
+- [x] Zurück-zum-Dashboard-Button auf Seiten ohne Sidebar-Navigation einbauen (MetaAdsDashboard, VideoResearch, BudgetRules, ApiKeys)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

@@ -39,7 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Play, Trash2, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { Plus, Play, Trash2, ChevronDown, ChevronUp, RefreshCw, ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
 
 const METRIC_LABELS: Record<string, string> = {
   cpl: "CPL (Kosten/Lead)",
@@ -99,6 +100,7 @@ const DEFAULT_RULE: NewRule = {
 };
 
 export default function BudgetRules() {
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -182,6 +184,9 @@ export default function BudgetRules() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2 h-8 px-2 mb-2">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Dashboard
+          </Button>
           <h1 className="text-2xl font-bold text-foreground">Budget-Regeln</h1>
           <p className="text-muted-foreground mt-1">
             Automatische Budgetanpassungen basierend auf Meta Ads KPIs — täglich um 10:10 Uhr CEST

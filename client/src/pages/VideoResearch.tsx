@@ -11,8 +11,9 @@ import { toast } from "sonner";
 import {
   Video, Play, FileText, Brain, Sparkles, Upload, Trash2,
   ChevronDown, ChevronUp, Copy, ExternalLink, Loader2,
-  CheckCircle2, AlertCircle, Clock, Download
+  CheckCircle2, AlertCircle, Clock, Download, ArrowLeft
 } from "lucide-react";
+import { useLocation } from "wouter";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending:      { label: "Wartend",       color: "bg-slate-500/20 text-slate-400",   icon: <Clock className="w-3 h-3" /> },
@@ -357,6 +358,7 @@ function VideoResearchCard({ item, onRefresh }: { item: any; onRefresh: () => vo
 }
 
 export default function VideoResearch() {
+  const [, navigate] = useLocation();
   const [url, setUrl] = useState("");
   const [platform, setPlatform] = useState<"facebook" | "instagram" | "youtube" | "tiktok" | "other">("facebook");
   const [competitorName, setCompetitorName] = useState("");
@@ -426,6 +428,9 @@ export default function VideoResearch() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2 h-8 px-2 mb-2">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Dashboard
+          </Button>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <Video className="w-6 h-6 text-blue-400" />
             Video Research Pipeline
