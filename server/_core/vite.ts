@@ -61,7 +61,22 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  app.use("*", (req, res, next) => {
+    try {
+      res.sendFile(path.resolve(distPath, "index.html"));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // Global error handler: catch URIError and other decode errors gracefully
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  app.use((err: any, _req: any, res: any, next: any) => {
+    if (err instanceof URIError || err?.type === 'entity.parse.failed') {
+      res.status(400).send('Bad Request');
+      return;
+    }
+    next(err);
   });
 }

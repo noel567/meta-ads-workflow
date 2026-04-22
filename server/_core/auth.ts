@@ -13,29 +13,53 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import nodemailer from "nodemailer";
+import fs from "fs";
+import path from "path";
 import * as db from "../db";
 import { ENV } from "./env";
 
-// ─── In-memory OTP store (TTL: 10 minutes) ───────────────────────────────────
+// ─── File-persisted OTP store (survives service restarts) ────────────────────
 interface OtpEntry {
   code: string;
   expiresAt: number;
   attempts: number;
 }
-const otpStore = new Map<string, OtpEntry>();
 
+const OTP_STORE_PATH = process.env.OTP_STORE_PATH ?? "/tmp/otp-store.json";
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 5;
 
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+function loadOtpStore(): Map<string, OtpEntry> {
+  try {
+    if (fs.existsSync(OTP_STORE_PATH)) {
+      const raw = fs.readFileSync(OTP_STORE_PATH, "utf-8");
+      const obj = JSON.parse(raw) as Record<string, OtpEntry>;
+      return new Map(Object.entries(obj));
+    }
+  } catch {
+    // ignore corrupt file
+  }
+  return new Map();
 }
 
-function cleanupExpiredOtps() {
-  const now = Date.now();
-  for (const [key, entry] of otpStore.entries()) {
-    if (entry.expiresAt < now) otpStore.delete(key);
+function saveOtpStore(store: Map<string, OtpEntry>) {
+  try {
+    const obj = Object.fromEntries(store.entries());
+    fs.writeFileSync(OTP_STORE_PATH, JSON.stringify(obj), "utf-8");
+  } catch {
+    // ignore write errors
   }
+}
+
+function cleanupExpiredOtps(store: Map<string, OtpEntry>) {
+  const now = Date.now();
+  for (const [key, entry] of store.entries()) {
+    if (entry.expiresAt < now) store.delete(key);
+  }
+}
+
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 // ─── Nodemailer transporter ───────────────────────────────────────────────────
@@ -152,14 +176,16 @@ export function registerAuthRoutes(app: Express) {
       }
     }
 
-    cleanupExpiredOtps();
+    const store = loadOtpStore();
+    cleanupExpiredOtps(store);
 
     const code = generateOtp();
-    otpStore.set(normalizedEmail, {
+    store.set(normalizedEmail, {
       code,
       expiresAt: Date.now() + OTP_TTL_MS,
       attempts: 0,
     });
+    saveOtpStore(store);
 
     try {
       await sendOtpEmail(normalizedEmail, code);
@@ -180,7 +206,8 @@ export function registerAuthRoutes(app: Express) {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const entry = otpStore.get(normalizedEmail);
+    const store = loadOtpStore();
+    const entry = store.get(normalizedEmail);
 
     if (!entry) {
       res.status(400).json({ error: "Kein Code angefordert oder Code abgelaufen" });
@@ -188,25 +215,29 @@ export function registerAuthRoutes(app: Express) {
     }
 
     if (Date.now() > entry.expiresAt) {
-      otpStore.delete(normalizedEmail);
+      store.delete(normalizedEmail);
+      saveOtpStore(store);
       res.status(400).json({ error: "Code abgelaufen — bitte neuen Code anfordern" });
       return;
     }
 
     entry.attempts++;
     if (entry.attempts > MAX_ATTEMPTS) {
-      otpStore.delete(normalizedEmail);
+      store.delete(normalizedEmail);
+      saveOtpStore(store);
       res.status(429).json({ error: "Zu viele Versuche — bitte neuen Code anfordern" });
       return;
     }
 
     if (entry.code !== code.trim()) {
+      saveOtpStore(store);
       res.status(400).json({ error: `Falscher Code (${MAX_ATTEMPTS - entry.attempts + 1} Versuche verbleibend)` });
       return;
     }
 
     // Code correct — create/update user and set session
-    otpStore.delete(normalizedEmail);
+    store.delete(normalizedEmail);
+    saveOtpStore(store);
 
     const openId = `email:${normalizedEmail}`;
     await db.upsertUser({
