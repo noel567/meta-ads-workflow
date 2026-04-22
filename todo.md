@@ -437,3 +437,11 @@
 - [x] Fallback auf Unicode-Pfeil wenn Logo nicht vorhanden
 - [x] Test-Bild erstellt und an Telegram gesendet (Message ID: 18)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Mehrere Hintergrundvarianten (April 2026)
+- [x] KI-Hintergrund Variante 2: Blauer Ton (deep navy, cyan/blaue Candlesticks)
+- [x] KI-Hintergrund Variante 3: Dunkelgrüner Ton (forest green, smaragdgrüne Candlesticks)
+- [x] createQuoteImage.py: BG_VARIANTS Liste mit 3 Einträgen (path + CDN-URL + name)
+- [x] get_daily_bg_variant(): MD5-Hash des Datums als deterministischer Seed (gleicher Tag = gleiche Variante)
+- [x] Test-Bilder für alle 3 Varianten erstellt und geprüft
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

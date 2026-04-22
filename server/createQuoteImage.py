@@ -8,15 +8,45 @@ Pillow legt Logo, Titel-Box, Zitat und Autor darüber.
 import sys
 import os
 import textwrap
+import hashlib
+from datetime import date
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 WIDTH, HEIGHT = 1080, 1080
 
-# Pfad zum KI-Hintergrundbild (1:1, 2048x2048, wird auf 1080x1080 skaliert)
-# Das Bild wird beim ersten Aufruf von der CDN-URL heruntergeladen und gecacht
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-BG_IMAGE_PATH = os.path.join(SCRIPT_DIR, "quote_bg.png")
-BG_IMAGE_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663565941002/4xE4vZJFvFwZj547EifVzi/quote_bg_v2-KR2h6WjdCkjtasGzUMqVzG.png"
+
+# Drei Hintergrundvarianten – täglich zufällig (deterministisch per Datum) ausgewählt
+BG_VARIANTS = [
+    {
+        "path": os.path.join(SCRIPT_DIR, "quote_bg.png"),
+        "url": "https://d2xsxph8kpxj0f.cloudfront.net/310519663565941002/4xE4vZJFvFwZj547EifVzi/quote_bg_v2-KR2h6WjdCkjtasGzUMqVzG.png",
+        "name": "teal",
+    },
+    {
+        "path": os.path.join(SCRIPT_DIR, "quote_bg_blue.png"),
+        "url": "https://d2xsxph8kpxj0f.cloudfront.net/310519663565941002/4xE4vZJFvFwZj547EifVzi/quote_bg_blue-SAYpBMPH3u6Gk3drMErGJU.png",
+        "name": "blue",
+    },
+    {
+        "path": os.path.join(SCRIPT_DIR, "quote_bg_darkgreen.png"),
+        "url": "https://d2xsxph8kpxj0f.cloudfront.net/310519663565941002/4xE4vZJFvFwZj547EifVzi/quote_bg_darkgreen-5GYBK68UKQ9sRsQ8hMvzrP.png",
+        "name": "darkgreen",
+    },
+]
+
+
+def get_daily_bg_variant():
+    """Wählt täglich deterministisch eine der 3 Varianten (Datum als Seed)."""
+    today_str = date.today().isoformat()  # z.B. "2026-04-22"
+    idx = int(hashlib.md5(today_str.encode()).hexdigest(), 16) % len(BG_VARIANTS)
+    return BG_VARIANTS[idx]
+
+
+# Rückwärtskompatibilität: BG_IMAGE_PATH und BG_IMAGE_URL zeigen auf tägliche Variante
+_daily = get_daily_bg_variant()
+BG_IMAGE_PATH = _daily["path"]
+BG_IMAGE_URL = _daily["url"]
 
 # Pfad zum echten EasySignals-Logo (weiss, RGBA, 832x150)
 LOGO_IMAGE_PATH = os.path.join(SCRIPT_DIR, "easysignals_logo.png")
