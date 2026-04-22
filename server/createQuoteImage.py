@@ -18,6 +18,11 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BG_IMAGE_PATH = os.path.join(SCRIPT_DIR, "quote_bg.png")
 BG_IMAGE_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663565941002/4xE4vZJFvFwZj547EifVzi/quote_bg_v2-KR2h6WjdCkjtasGzUMqVzG.png"
 
+# Pfad zum echten EasySignals-Logo (weiss, RGBA, 832x150)
+LOGO_IMAGE_PATH = os.path.join(SCRIPT_DIR, "easysignals_logo.png")
+# Direkter Download-Link zum weissen EasySignals-Logo (RGBA PNG)
+LOGO_IMAGE_URL = "https://files.manuscdn.com/user_upload_by_module/web_dev_logo/310519663565941002/QcvwfRgAqEOlEwou.png"
+
 # Fonts
 FONT_SANS_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 FONT_SERIF_BOLD_ITALIC = "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf"
@@ -102,15 +107,32 @@ def create_quote_image(quote_text, author, output_path):
     draw = ImageDraw.Draw(bg)
 
     # ── LOGO ──────────────────────────────────────────────────────────────────
-    logo_y = 72
-    arrow = "\u2197 "
-    name = "EASYSIGNALS"
-    ab = draw.textbbox((0, 0), arrow, font=fonts["logo"])
-    nb = draw.textbbox((0, 0), name, font=fonts["logo"])
-    total_w = (ab[2] - ab[0]) + (nb[2] - nb[0])
-    lx = (WIDTH - total_w) // 2
-    draw.text((lx, logo_y), arrow, font=fonts["logo"], fill=GREEN_BRIGHT)
-    draw.text((lx + ab[2] - ab[0], logo_y), name, font=fonts["logo"], fill=WHITE)
+    logo_y = 55
+    logo_drawn = False
+    if os.path.exists(LOGO_IMAGE_PATH):
+        try:
+            logo_img = Image.open(LOGO_IMAGE_PATH).convert("RGBA")
+            # Logo auf passende Hoehe skalieren (ca. 72px hoch)
+            logo_h = 72
+            logo_w = int(logo_img.width * logo_h / logo_img.height)
+            logo_img = logo_img.resize((logo_w, logo_h), Image.LANCZOS)
+            # Zentriert einfuegen
+            lx = (WIDTH - logo_w) // 2
+            bg.alpha_composite(logo_img, dest=(lx, logo_y))
+            draw = ImageDraw.Draw(bg)  # Nach alpha_composite neu erstellen
+            logo_drawn = True
+        except Exception as e:
+            print(f"Logo-Fehler: {e}", file=sys.stderr)
+    if not logo_drawn:
+        # Fallback: Unicode-Text
+        arrow = "\u2197 "
+        name = "EASYSIGNALS"
+        ab = draw.textbbox((0, 0), arrow, font=fonts["logo"])
+        nb = draw.textbbox((0, 0), name, font=fonts["logo"])
+        total_w = (ab[2] - ab[0]) + (nb[2] - nb[0])
+        lx = (WIDTH - total_w) // 2
+        draw.text((lx, logo_y), arrow, font=fonts["logo"], fill=GREEN_BRIGHT)
+        draw.text((lx + ab[2] - ab[0], logo_y), name, font=fonts["logo"], fill=WHITE)
 
     # ── TITEL-BOX "QUOTE OF THE DAY" ─────────────────────────────────────────
     title = "QUOTE OF THE DAY"

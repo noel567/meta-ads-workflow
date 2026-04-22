@@ -430,3 +430,10 @@
 - [x] createQuoteImage.py: KI-Hintergrund als Basis, Pillow legt Logo/Titel/Zitat/Autor darüber
 - [x] Test-Bild erstellt und an Telegram gesendet (Message ID: 16)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: Echtes EasySignals-Logo im Quote-Bild (April 2026)
+- [x] EasySignals-Logo-PNG (Logo_Weiss.png, 832x150, RGBA) heruntergeladen
+- [x] createQuoteImage.py: Logo-PNG zentriert eingebettet (72px Hoehe, alpha_composite)
+- [x] Fallback auf Unicode-Pfeil wenn Logo nicht vorhanden
+- [x] Test-Bild erstellt und an Telegram gesendet (Message ID: 18)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
