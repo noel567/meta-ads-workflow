@@ -161,7 +161,7 @@ Format: Kurze Absätze, 2–4 Emojis, klarer Abschluss mit CTA.`;
       return `Schreibe einen Social-Proof-Post für heute (${today}).
 Thema: Erfolge der Community, Mitglieder die profitiert haben, oder ein allgemeines Statement zur Performance.
 Erwähne, dass die VIP-Gruppe limitierte Plätze hat.
-Call-to-Action: @Noel_EasySignals kontaktieren für VIP-Zugang.
+Call-to-Action: @easysignal_de_bot kontaktieren für VIP-Zugang.
 Sprache: Hochdeutsch.
 Format: Kurze Absätze, 2–4 Emojis, abschließender CTA.`;
 
@@ -169,7 +169,7 @@ Format: Kurze Absätze, 2–4 Emojis, abschließender CTA.`;
       return `Schreibe einen Scarcity- und CTA-Post für heute (${today}).
 Thema: Begrenzte Plätze in der VIP-Gruppe oder im LAT-System (automatisiertes Trading).
 Erzeuge Dringlichkeit durch Zeitdruck und begrenzte Verfügbarkeit.
-Call-to-Action: @Noel_EasySignals kontaktieren.
+Call-to-Action: @easysignal_de_bot kontaktieren.
 Hinweis: Die VIP-Gruppe ist 100% kostenlos (finanziert durch die Broker-Partnerschaft mit IronFX).
 Sprache: Hochdeutsch.
 Format: Kurze Absätze, 2–3 Emojis, klarer CTA am Ende.`;

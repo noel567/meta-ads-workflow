@@ -445,3 +445,9 @@
 - [x] get_daily_bg_variant(): MD5-Hash des Datums als deterministischer Seed (gleicher Tag = gleiche Variante)
 - [x] Test-Bilder für alle 3 Varianten erstellt und geprüft
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Content Bot: CTA auf @easysignal_de_bot setzen (April 2026)
+- [x] contentBotRouter.ts: social_proof Prompt CTA auf @easysignal_de_bot geändert
+- [x] contentBotRouter.ts: scarcity Prompt CTA auf @easysignal_de_bot geändert
+- [x] Kein anderer Username mehr in den Posts
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
