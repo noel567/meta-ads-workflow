@@ -20,11 +20,28 @@ import BudgetRules from "./pages/BudgetRules";
 import DriveToMeta from "./pages/DriveToMeta";
 import ApiKeys from "./pages/ApiKeys";
 import ContentBot from "./pages/ContentBot";
+import Login from "./pages/Login";
+import { useAuth } from "./_core/hooks/useAuth";
 
-function Router() {
+function ProtectedRouter() {
+  const { isAuthenticated, loading } = useAuth({ redirectOnUnauthenticated: false });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[oklch(0.10_0.012_250)] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={Login} />
       <Route path="/connect" component={MetaConnect} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/ad-library" component={AdLibrary} />
@@ -62,7 +79,7 @@ function App() {
               },
             }}
           />
-          <Router />
+          <ProtectedRouter />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
