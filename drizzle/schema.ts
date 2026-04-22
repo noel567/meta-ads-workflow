@@ -525,7 +525,7 @@ export const apiKeys = mysqlTable("api_keys", {
   userId: int("userId").notNull(),
   name: varchar("name", { length: 128 }).notNull(),
   keyHash: varchar("keyHash", { length: 64 }).notNull(),
-  keyPreview: varchar("keyPreview", { length: 16 }).notNull(),
+  keyPreview: varchar("keyPreview", { length: 32 }).notNull(),
   lastUsedAt: timestamp("lastUsedAt"),
   revokedAt: timestamp("revokedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

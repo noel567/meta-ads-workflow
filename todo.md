@@ -457,3 +457,8 @@
 - [x] Backend: dateRange-Logik für "today" und "yesterday" implementieren
 - [x] Zurück-zum-Dashboard-Button auf Seiten ohne Sidebar-Navigation einbauen (MetaAdsDashboard, VideoResearch, BudgetRules, ApiKeys)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Bugfix: API-Keys keyPreview zu lang (April 2026)
+- [x] Schema: keyPreview varchar(16) → varchar(32) in drizzle/schema.ts
+- [x] DB: ALTER TABLE api_keys MODIFY keyPreview varchar(32)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
