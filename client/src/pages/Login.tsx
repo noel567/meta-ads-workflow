@@ -172,6 +172,14 @@ export default function Login() {
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   Anmelden
                 </button>
+                <div className="text-center pt-1">
+                  <a
+                    href="/forgot-password"
+                    className="text-xs text-gray-500 hover:text-indigo-400 transition-colors"
+                  >
+                    Passwort vergessen?
+                  </a>
+                </div>
               </form>
             </>
           ) : step === "email" ? (

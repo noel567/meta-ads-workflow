@@ -475,3 +475,16 @@
 - [x] Frontend: Admin-Seite /admin/users – User anlegen, auflisten, löschen, Passwort zurücksetzen
 - [x] Sidebar: Admin-Eintrag nur für role=admin sichtbar
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Passwort-vergessen Flow (April 2026)
+- [x] DB: password_reset_tokens Tabelle (id, userId, token, expiresAt, usedAt, createdAt)
+- [x] DB: Migration per ALTER TABLE / CREATE TABLE anwenden
+- [x] Backend: POST /api/auth/forgot-password (E-Mail eingeben → Token generieren → E-Mail senden)
+- [x] Backend: POST /api/auth/reset-password (Token + neues Passwort → Passwort aktualisieren)
+- [x] Backend: GET /api/auth/reset-password/:token (Token validieren → gültig/abgelaufen prüfen)
+- [x] E-Mail: nodemailer mit SMTP senden (Reset-Link mit Token, 1h Ablaufzeit)
+- [x] Frontend: ForgotPassword.tsx – E-Mail-Eingabe + Bestätigungsmeldung
+- [x] Frontend: ResetPassword.tsx – Token aus URL, neues Passwort + Bestätigung eingeben
+- [x] Frontend: Login-Seite – "Passwort vergessen?" Link unter Passwort-Feld
+- [x] App.tsx: /forgot-password und /reset-password/:token Routen registrieren
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

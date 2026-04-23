@@ -295,6 +295,86 @@ export function registerAuthRoutes(app: Express) {
     res.json({ success: true, user });
   });
 
+  // POST /api/auth/forgot-password
+  app.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+    const { email } = req.body as { email?: string };
+    if (!email || !email.includes("@")) {
+      res.status(400).json({ error: "Gültige E-Mail-Adresse erforderlich" });
+      return;
+    }
+    // Always respond with success to prevent email enumeration
+    res.json({ success: true, message: "Falls ein Konto mit dieser E-Mail existiert, wurde ein Reset-Link gesendet." });
+
+    // Do the actual work after responding
+    try {
+      const user = await db.getUserByEmail(email);
+      if (!user) return;
+
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(48).toString("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await db.createPasswordResetToken(user.id, token, expiresAt);
+
+      const proto = req.headers["x-forwarded-proto"] ?? req.protocol;
+      const host = req.headers["x-forwarded-host"] ?? req.get("host");
+      const origin = `${proto}://${host}`;
+      const resetUrl = `${origin}/reset-password/${token}`;
+
+      if (!ENV.smtpUser || !ENV.smtpPass) {
+        console.log(`[Auth] Password reset link for ${email}: ${resetUrl}`);
+        return;
+      }
+      const transporter = createTransporter();
+      await transporter.sendMail({
+        from: `"EasySignals" <${ENV.smtpFrom}>`,
+        to: email,
+        subject: "Passwort zurücksetzen – EasySignals",
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#4f46e5">Passwort zurücksetzen</h2>
+            <p>Hallo${user.name ? " " + user.name : ""},</p>
+            <p>Du hast eine Anfrage zum Zurücksetzen deines Passworts gestellt. Klicke auf den Button, um ein neues Passwort festzulegen:</p>
+            <p style="margin:24px 0">
+              <a href="${resetUrl}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Passwort zurücksetzen</a>
+            </p>
+            <p style="color:#888;font-size:13px">Dieser Link ist 1 Stunde gültig. Falls du diese Anfrage nicht gestellt hast, kannst du diese E-Mail ignorieren.</p>
+            <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+            <p style="color:#aaa;font-size:12px">EasySignals – Meta Ads Workflow</p>
+          </div>
+        `,
+      });
+    } catch (err) {
+      console.error("[Auth] forgot-password error:", err);
+    }
+  });
+
+  // GET /api/auth/reset-password/:token (validate token)
+  app.get("/api/auth/reset-password/:token", async (req: Request, res: Response) => {
+    const { token } = req.params;
+    const record = await db.getPasswordResetToken(token);
+    if (!record) { res.status(404).json({ valid: false, error: "Token nicht gefunden" }); return; }
+    if (record.usedAt) { res.status(410).json({ valid: false, error: "Token wurde bereits verwendet" }); return; }
+    if (new Date() > record.expiresAt) { res.status(410).json({ valid: false, error: "Token abgelaufen" }); return; }
+    res.json({ valid: true });
+  });
+
+  // POST /api/auth/reset-password
+  app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+    const { token, newPassword } = req.body as { token?: string; newPassword?: string };
+    if (!token || !newPassword || newPassword.length < 6) {
+      res.status(400).json({ error: "Token und Passwort (mind. 6 Zeichen) erforderlich" });
+      return;
+    }
+    const record = await db.getPasswordResetToken(token);
+    if (!record) { res.status(404).json({ error: "Token nicht gefunden" }); return; }
+    if (record.usedAt) { res.status(410).json({ error: "Token wurde bereits verwendet" }); return; }
+    if (new Date() > record.expiresAt) { res.status(410).json({ error: "Token abgelaufen – bitte erneut anfordern" }); return; }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await db.updateUserPassword(record.userId, passwordHash);
+    await db.markPasswordResetTokenUsed(token);
+    res.json({ success: true, message: "Passwort erfolgreich zurückgesetzt" });
+  });
+
   // POST /api/auth/logout
   app.post("/api/auth/logout", (_req: Request, res: Response) => {
     res.clearCookie(COOKIE_NAME, { path: "/" });

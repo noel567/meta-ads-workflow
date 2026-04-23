@@ -37,6 +37,8 @@ import {
   apiKeys,
   ApiKey,
   InsertApiKey,
+  passwordResetTokens,
+  PasswordResetToken,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -641,4 +643,45 @@ export async function updateApiKeyLastUsed(id: number): Promise<void> {
   const db = await getDb();
   if (!db) return;
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, id));
+}
+
+// ─── Password Reset Tokens ────────────────────────────────────────────────────
+
+export async function createPasswordResetToken(userId: number, token: string, expiresAt: Date): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // Invalidate any existing tokens for this user
+  await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+  await db.insert(passwordResetTokens).values({ userId, token, expiresAt });
+}
+
+export async function getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(passwordResetTokens)
+    .where(eq(passwordResetTokens.token, token))
+    .limit(1);
+  return result[0];
+}
+
+export async function markPasswordResetTokenUsed(token: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(eq(passwordResetTokens.token, token));
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email.toLowerCase().trim()))
+    .limit(1);
+  return result[0];
 }

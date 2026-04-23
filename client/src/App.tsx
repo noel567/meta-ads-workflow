@@ -22,6 +22,8 @@ import ApiKeys from "./pages/ApiKeys";
 import ContentBot from "./pages/ContentBot";
 import Login from "./pages/Login";
 import AdminUsers from "./pages/AdminUsers";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import { useAuth } from "./_core/hooks/useAuth";
 
 function ProtectedRouter() {
@@ -36,6 +38,12 @@ function ProtectedRouter() {
   }
 
   if (!isAuthenticated) {
+    // Allow public auth pages without login
+    const path = window.location.pathname;
+    if (path.startsWith("/forgot-password")) return <ForgotPassword />;
+    if (path.startsWith("/reset-password")) {
+      return <ResetPassword />;
+    }
     return <Login />;
   }
 
@@ -60,6 +68,8 @@ function ProtectedRouter() {
       <Route path="/api-keys" component={ApiKeys} />
       <Route path="/content-bot" component={ContentBot} />
       <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
