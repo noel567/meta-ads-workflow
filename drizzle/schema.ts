@@ -545,6 +545,7 @@ export const contentPosts = mysqlTable("content_posts", {
   sentAt: timestamp("sentAt"),
   status: mysqlEnum("status", ["pending", "sent", "error", "skipped"]).default("pending").notNull(),
   telegramMessageId: varchar("telegramMessageId", { length: 64 }),
+  imageUrl: text("imageUrl"),
   errorMessage: text("errorMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
