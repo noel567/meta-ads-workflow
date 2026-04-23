@@ -532,3 +532,9 @@
 ## Bug: Stil-Dropdown fehlt bei bestehendem Quote-Post (April 2026)
 - [x] Stil-Dropdown auch im bestehenden Post-Zustand (neben "Neu generieren" Button) anzeigen
 - [x] "Neu generieren" übergibt den gewählten Stil korrekt an generateMutation
+
+## Scheduler: defaultBackgroundStyle aus Settings (April 2026)
+- [x] DB: defaultBackgroundStyle Feld in contentBotSettings Tabelle
+- [x] Backend: sendQuoteAsImage akzeptiert style Parameter
+- [x] Backend: Scheduler liest defaultBackgroundStyle aus Settings und übergibt ihn
+- [x] Frontend: Stil-Dropdown in ContentBot-Einstellungen (Settings-Tab)

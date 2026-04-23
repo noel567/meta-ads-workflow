@@ -188,11 +188,27 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
   });
 
-  // Start daily scheduler for owner
+  // Start daily scheduler for owner automatically
   if (ENV.ownerOpenId) {
-    // We need the owner's userId – start scheduler lazily after first login
-    // The scheduler is also triggerable via tRPC (system.triggerDailyScan)
-    console.log("[Scheduler] Ready – will start after owner login");
+    // Look up the owner's DB userId by openId and start scheduler
+    setTimeout(async () => {
+      try {
+        const { getDb } = await import("../db");
+        const { users } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) { console.log("[Scheduler] DB not ready, skipping auto-start"); return; }
+        const rows = await db.select().from(users).where(eq(users.openId, ENV.ownerOpenId!)).limit(1);
+        if (rows[0]) {
+          startScheduler(rows[0].id);
+          console.log(`[Scheduler] Auto-started for owner userId=${rows[0].id}`);
+        } else {
+          console.log("[Scheduler] Owner not found in DB yet – will start after first login");
+        }
+      } catch (e) {
+        console.error("[Scheduler] Auto-start failed:", e);
+      }
+    }, 5000); // 5s delay to let DB connection stabilize
   }
 }
 

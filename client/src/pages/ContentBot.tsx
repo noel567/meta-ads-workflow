@@ -419,6 +419,7 @@ function SettingsPanel() {
   // Local time state – initialised from server data once loaded
   const [localTimes, setLocalTimes] = useState<Record<string, string>>({});
   const [savingTime, setSavingTime] = useState<string | null>(null);
+  const [localStyle, setLocalStyle] = useState<string>("trading");
 
   // Sync local state when server data arrives
   const settingsRef = settings;
@@ -438,6 +439,7 @@ function SettingsPanel() {
       timeEveningRecap: settingsRef.timeEveningRecap ?? "20:00",
       timeQuote: (settingsRef as any).timeQuote ?? "09:00",
     });
+    setLocalStyle((settingsRef as any).defaultBackgroundStyle ?? "trading");
     setInitDone(true);
   }
 
@@ -562,6 +564,39 @@ function SettingsPanel() {
           );
         })}
       </div>
+
+      {/* Quote Hintergrundstil */}
+      <Card className="border-amber-500/20 bg-amber-500/5">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-amber-400" />
+            <p className="text-sm font-semibold">Standard-Hintergrundstil für Quote of the Day</p>
+          </div>
+          <p className="text-xs text-muted-foreground">Dieser Stil wird beim automatischen Scheduler-Versand (09:00 Uhr) verwendet.</p>
+          <Select
+            value={localStyle}
+            onValueChange={(v) => {
+              setLocalStyle(v);
+              updateMutation.mutate({ defaultBackgroundStyle: v as any });
+            }}
+          >
+            <SelectTrigger className="w-full bg-background/60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DALLE_STYLES.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  <span className="flex items-center gap-2">
+                    <span>{s.emoji}</span>
+                    <span className="font-medium">{s.label}</span>
+                    <span className="text-muted-foreground text-xs"> – {s.description}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
         <p className="text-xs text-amber-400">

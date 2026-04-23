@@ -569,6 +569,7 @@ export const contentBotSettings = mysqlTable("content_bot_settings", {
   timeScarcity: varchar("timeScarcity", { length: 5 }).default("17:00").notNull(),
   timeEveningRecap: varchar("timeEveningRecap", { length: 5 }).default("20:00").notNull(),
   timeQuote: varchar("timeQuote", { length: 5 }).default("09:00").notNull(),
+  defaultBackgroundStyle: varchar("defaultBackgroundStyle", { length: 32 }).default("trading").notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 export type ContentBotSettings = typeof contentBotSettings.$inferSelect;

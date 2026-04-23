@@ -194,7 +194,7 @@ async function generateQuoteImageUrl(quoteText: string, userId: number, style: D
 }
 
 /** Generiert Quote-Bild und sendet es; gibt messageId zurueck */
-async function sendQuoteAsImage(quoteText: string, userId: number): Promise<{ messageId: string | null; imageUrl: string | null }> {
+async function sendQuoteAsImage(quoteText: string, userId: number, style: DalleStyleId = "trading"): Promise<{ messageId: string | null; imageUrl: string | null }> {
   // Zitat und Autor aus dem Text extrahieren (KI-generiertes Format)
   // Format: "Zitat" \n\n— Autor
   const quoteMatch = quoteText.match(/["\u201e\u201c]([^"\u201c\u201d]+)["\u201d\u201c]/);
@@ -206,8 +206,8 @@ async function sendQuoteAsImage(quoteText: string, userId: number): Promise<{ me
   let imageUrl: string | null = null;
 
   try {
-    // DALL-E 3 Hintergrund generieren
-    const backgroundUrl = await generateDallE3Background(quote, author);
+    // DALL-E 3 Hintergrund generieren (Stil aus Settings)
+    const backgroundUrl = await generateDallE3Background(quote, author, style);
     imgPath = createQuoteImageFile(quote, author, backgroundUrl ?? undefined);
     // Bild auf S3 hochladen
     const imgBuffer = readFileSync(imgPath);
@@ -445,6 +445,7 @@ export const contentBotRouter = router({
       timeScarcity: "17:00",
       timeEveningRecap: "20:00",
       timeQuote: "09:00",
+      defaultBackgroundStyle: "trading",
     };
   }),
 
@@ -463,6 +464,7 @@ export const contentBotRouter = router({
       timeScarcity: z.string().optional(),
       timeEveningRecap: z.string().optional(),
       timeQuote: z.string().optional(),
+      defaultBackgroundStyle: z.enum(["trading", "skyline", "abstract", "nature", "gold", "dark_minimal", "cosmic", "luxury"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       await upsertSettings(ctx.user.id, input);
@@ -753,7 +755,9 @@ export async function runContentBotScheduler(userId: number): Promise<void> {
     let messageId: string | null = null;
     let imageUrl: string | null = null;
     if (type === "quote") {
-      const res = await sendQuoteAsImage(text, userId);
+      // Stil aus Settings übernehmen
+      const quoteStyle = ((settings as any)?.defaultBackgroundStyle ?? "trading") as DalleStyleId;
+      const res = await sendQuoteAsImage(text, userId, quoteStyle);
       messageId = res.messageId;
       imageUrl = res.imageUrl;
     } else {
@@ -764,12 +768,13 @@ export async function runContentBotScheduler(userId: number): Promise<void> {
       await db.update(contentPosts).set({
         status: "sent", sentAt: new Date(), telegramMessageId: messageId,
         ...(imageUrl ? { imageUrl } : {}),
+        ...(type === "quote" ? { backgroundStyle: ((settings as any)?.defaultBackgroundStyle ?? "trading") } : {}),
       }).where(eq(contentPosts.id, postId));
-      console.log(`[ContentBot] \u2705 ${type} Post gesendet (msg ${messageId})`);
+      console.log(`[ContentBot] ✅ ${type} Post gesendet (msg ${messageId})`);
     } else {
       await db.update(contentPosts).set({ status: "error", errorMessage: "Telegram-Versand fehlgeschlagen" })
         .where(eq(contentPosts.id, postId));
-      console.log(`[ContentBot] \u274c ${type} Post fehlgeschlagen`);
+      console.log(`[ContentBot] ❌ ${type} Post fehlgeschlagen`);
     }
   }
 }
