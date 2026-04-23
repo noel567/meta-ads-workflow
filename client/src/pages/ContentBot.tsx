@@ -24,6 +24,9 @@ import {
   CalendarDays,
   BarChart2,
   Image as ImageIcon,
+  Maximize2,
+  Sparkles,
+  X,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -89,6 +92,30 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// ─── Image Lightbox ───────────────────────────────────────────────────────────
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+        onClick={onClose}
+      >
+        <X className="h-8 w-8" />
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"
+        style={{ maxWidth: "min(90vw, 800px)", maxHeight: "90vh" }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
 // ─── Post Card ────────────────────────────────────────────────────────────────
 function PostCard({
   type,
@@ -99,7 +126,7 @@ function PostCard({
   isGenerating,
 }: {
   type: PostType;
-  post?: { id: number; text: string; status: string; scheduledAt: Date | string; sentAt?: Date | string | null; imageUrl?: string | null };
+  post?: { id: number; text: string; status: string; scheduledAt: Date | string; sentAt?: Date | string | null; imageUrl?: string | null; dalleBackgroundUrl?: string | null };
   onGenerate: (type: PostType) => void;
   onSend: (postId: number) => void;
   onDelete: (postId: number) => void;
@@ -107,6 +134,7 @@ function PostCard({
 }) {
   const config = POST_TYPE_CONFIG[type];
   const [editText, setEditText] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
   const updateMutation = trpc.contentBot.updatePostText.useMutation({
@@ -220,14 +248,62 @@ function PostCard({
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
-            {post.imageUrl ? (
-              <div className="rounded-lg overflow-hidden border border-border/30">
-                <img src={post.imageUrl} alt="Post-Bild" className="w-full h-36 object-cover" />
+            {/* DALL-E 3 Hintergrund + finales Quote-Bild Vorschau */}
+            {type === "quote" && (post.dalleBackgroundUrl || post.imageUrl) && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                  <Sparkles className="h-3 w-3 text-amber-400" />
+                  DALL-E 3 Vorschau
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* DALL-E 3 Hintergrundbild */}
+                  {post.dalleBackgroundUrl && (
+                    <div className="relative group cursor-pointer rounded-lg overflow-hidden border border-amber-500/20 bg-black/20"
+                      onClick={() => setLightboxSrc(post.dalleBackgroundUrl!)}
+                    >
+                      <img
+                        src={post.dalleBackgroundUrl}
+                        alt="DALL-E 3 Hintergrund"
+                        className="w-full h-28 object-cover transition-transform group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                        <Maximize2 className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+                        <p className="text-[10px] text-amber-300 font-medium">Hintergrund</p>
+                      </div>
+                    </div>
+                  )}
+                  {/* Finales Quote-Bild */}
+                  {post.imageUrl && (
+                    <div className="relative group cursor-pointer rounded-lg overflow-hidden border border-border/30 bg-black/20"
+                      onClick={() => setLightboxSrc(post.imageUrl!)}
+                    >
+                      <img
+                        src={post.imageUrl}
+                        alt="Quote-Bild"
+                        className="w-full h-28 object-cover transition-transform group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                        <Maximize2 className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+                        <p className="text-[10px] text-white/80 font-medium">Finales Bild</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            ) : (
+            )}
+            {type !== "quote" && !post.imageUrl && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground/50">
                 <ImageIcon className="h-3 w-3" />
                 Kein Bild
+              </div>
+            )}
+            {type !== "quote" && post.imageUrl && (
+              <div className="rounded-lg overflow-hidden border border-border/30">
+                <img src={post.imageUrl} alt="Post-Bild" className="w-full h-36 object-cover" />
               </div>
             )}
             {post.status === "sent" && post.sentAt && (
@@ -238,6 +314,13 @@ function PostCard({
           </>
         )}
       </CardContent>
+    {lightboxSrc && (
+      <ImageLightbox
+        src={lightboxSrc}
+        alt="Vorschau"
+        onClose={() => setLightboxSrc(null)}
+      />
+    )}
     </Card>
   );
 }
@@ -598,6 +681,7 @@ export default function ContentBot() {
           scheduledAt: new Date(),
           sentAt: null,
           imageUrl: (data as any).imageUrl ?? null,
+          dalleBackgroundUrl: (data as any).dalleBackgroundUrl ?? null,
           userId: 0,
           createdAt: new Date(),
           telegramMessageId: null,

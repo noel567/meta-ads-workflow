@@ -148,22 +148,22 @@ async function sendTelegramPhoto(imgPath: string, caption: string): Promise<stri
 }
 
 /** Erstellt Quote-Bild und lädt es auf S3 hoch – kein Telegram-Versand */
-async function generateQuoteImageUrl(quoteText: string, userId: number): Promise<string | null> {
+async function generateQuoteImageUrl(quoteText: string, userId: number): Promise<{ imageUrl: string | null; dalleBackgroundUrl: string | null }> {
   const quoteMatch = quoteText.match(/["\u201e\u201c]([^"\u201c\u201d]+)["\u201d\u201c]/);
   const authorMatch = quoteText.match(/[\u2014\-]\s*([A-Z][\w\s.]+)/);
   const quote = quoteMatch?.[1]?.trim() ?? quoteText.slice(0, 120);
   const author = authorMatch?.[1]?.trim() ?? "EasySignals";
   try {
     // DALL-E 3 Hintergrund generieren
-    const backgroundUrl = await generateDallE3Background(quote, author);
-    const imgPath = createQuoteImageFile(quote, author, backgroundUrl ?? undefined);
+    const dalleBackgroundUrl = await generateDallE3Background(quote, author);
+    const imgPath = createQuoteImageFile(quote, author, dalleBackgroundUrl ?? undefined);
     const imgBuffer = readFileSync(imgPath);
     const key = `quote-images/${userId}-${Date.now()}.png`;
     const { url } = await storagePut(key, imgBuffer, "image/png");
-    return url;
+    return { imageUrl: url, dalleBackgroundUrl };
   } catch (e) {
     console.error("[ContentBot] generateQuoteImageUrl failed:", e);
-    return null;
+    return { imageUrl: null, dalleBackgroundUrl: null };
   }
 }
 
@@ -486,8 +486,11 @@ export const contentBotRouter = router({
       if (!db) throw new Error("Datenbank nicht verfügbar");
       // Bei Quote: Bild bereits beim Generieren erstellen für Vorschau (kein Telegram-Versand)
       let imageUrl: string | null = null;
+      let dalleBackgroundUrl: string | null = null;
       if (input.type === "quote") {
-        imageUrl = await generateQuoteImageUrl(text, ctx.user.id);
+        const result = await generateQuoteImageUrl(text, ctx.user.id);
+        imageUrl = result.imageUrl;
+        dalleBackgroundUrl = result.dalleBackgroundUrl;
       }
       const result = await db.insert(contentPosts).values({
         userId: ctx.user.id,
@@ -496,9 +499,10 @@ export const contentBotRouter = router({
         scheduledAt: getScheduledTime(timeMap[input.type]),
         status: "pending",
         ...(imageUrl ? { imageUrl } : {}),
+        ...(dalleBackgroundUrl ? { dalleBackgroundUrl } : {}),
       });
       const id = (result as any).insertId as number;
-      return { id, text, type: input.type, imageUrl };
+      return { id, text, type: input.type, imageUrl, dalleBackgroundUrl };
     }),
 
   // Alle Posts für heute generieren

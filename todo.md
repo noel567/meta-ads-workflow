@@ -512,3 +512,11 @@
 - [x] createQuoteImage.py: --background_url Parameter akzeptieren, Bild herunterladen und als Hintergrund verwenden
 - [x] Fallback auf statische Hintergründe wenn DALL-E 3 fehlschlägt
 - [x] Test: Quote-Bild mit DALL-E 3 Hintergrund generieren und an Telegram senden
+
+## DALL-E 3 Hintergrundbild-Vorschau in ContentBot-UI (April 2026)
+- [x] DB: dalleBackgroundUrl Feld in content_posts Tabelle hinzufügen
+- [x] Backend: generateDallE3Background URL separat in DB speichern (dalleBackgroundUrl)
+- [x] Backend: dalleBackgroundUrl in getTodaysPosts und generatePost zurückgeben
+- [x] Frontend: Quote-Karte zeigt DALL-E 3 Hintergrundbild als Vorschau (klein, links)
+- [x] Frontend: "Neuen Hintergrund generieren" Button in Quote-Karte (via Neu generieren)
+- [x] Frontend: Vollbild-Vorschau des finalen Quote-Bildes (imageUrl) per Klick (Lightbox)
