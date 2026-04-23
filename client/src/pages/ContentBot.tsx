@@ -584,10 +584,31 @@ export default function ContentBot() {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
 
   const generateMutation = trpc.contentBot.generatePost.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Optimistisches Update: Post sofort in den Cache schreiben damit Vorschau sofort erscheint
+      utils.contentBot.getTodaysPosts.setData(undefined, (old) => {
+        const newPost = {
+          id: data.id,
+          type: data.type as "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap" | "quote",
+          text: data.text,
+          status: "pending" as "pending" | "sent" | "error" | "skipped",
+          scheduledAt: new Date(),
+          sentAt: null,
+          imageUrl: null,
+          userId: 0,
+          createdAt: new Date(),
+          telegramMessageId: null,
+          errorMessage: null,
+        };
+        if (!old) return [newPost];
+        // Alten Post dieses Typs ersetzen oder neuen hinzufügen
+        const filtered = old.filter((p: any) => p.type !== data.type);
+        return [...filtered, newPost];
+      });
+      // Danach noch invalidieren um frische Daten zu holen
       utils.contentBot.getTodaysPosts.invalidate();
       setGeneratingType(null);
-      toast.success("Post generiert");
+      toast.success("✅ Post generiert – Vorschau bereit!");
     },
     onError: (e) => {
       toast.error(e.message);

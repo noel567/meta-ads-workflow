@@ -494,3 +494,10 @@
 - [x] VideoResearch, BudgetRules, ApiKeys, MetaAdsDashboard, AdminUsers in DashboardLayout einbetten
 - [x] Zurück-Buttons auf diesen Seiten entfernen (Sidebar übernimmt Navigation)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## ContentBot: Post-Vorschau nach Generierung (April 2026)
+- [x] Nach Generierung: Post-Text als Vorschau in der Karte anzeigen (optimistisches Update)
+- [x] Vorschau: Bearbeiten-Textarea (editierbar, Klick auf Text)
+- [x] Vorschau: „Jetzt senden“-Button direkt in der Karte
+- [x] Vorschau: „Neu generieren“-Button zum Überschreiben
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
