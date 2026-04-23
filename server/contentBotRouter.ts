@@ -688,6 +688,31 @@ export const contentBotRouter = router({
 
     return { items, nextOverall };
   }),
+
+  // --- Test-Quote: Sofort ein Quote-Bild mit Standard-Stil generieren und senden ---
+  testQuote: protectedProcedure.mutation(async ({ ctx }) => {
+    const settings = await getSettings(ctx.user.id);
+    const style = ((settings as any)?.defaultBackgroundStyle ?? "trading") as DalleStyleId;
+
+    // KI-Zitat generieren
+    const db = await getDb();
+    if (!db) throw new Error("Datenbank nicht verfügbar");
+
+    const text = await generatePostText("quote", ctx.user.id);
+    if (!text) throw new Error("KI-Generierung fehlgeschlagen");
+
+    // Bild generieren und senden
+    const result = await sendQuoteAsImage(text, ctx.user.id, style);
+    if (!result.messageId) throw new Error("Telegram-Versand fehlgeschlagen – Bild konnte nicht erstellt werden");
+
+    return {
+      success: true,
+      messageId: result.messageId,
+      imageUrl: result.imageUrl,
+      style,
+      text,
+    };
+  }),
 });
 
 // --- Scheduler-Funktion (wird von scheduler.ts aufgerufen) ----

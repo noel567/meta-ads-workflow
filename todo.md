@@ -538,3 +538,11 @@
 - [x] Backend: sendQuoteAsImage akzeptiert style Parameter
 - [x] Backend: Scheduler liest defaultBackgroundStyle aus Settings und übergibt ihn
 - [x] Frontend: Stil-Dropdown in ContentBot-Einstellungen (Settings-Tab)
+
+## ContentBot: "Jetzt testen"-Button in Einstellungen (April 2026)
+- [x] Backend: testQuote tRPC-Procedure (generiert Quote + Bild + sendet an Telegram)
+- [x] Backend: Gibt imageUrl, messageId und verwendeten Stil zurück
+- [x] Frontend: "Jetzt testen" Button in SettingsPanel (Stil-Karte)
+- [x] Frontend: Loading-State während Generierung (DALL-E 3 dauert ~15s)
+- [x] Frontend: Erfolgs-Toast mit Bild-Vorschau nach erfolgreichem Versand
+- [x] Frontend: Fehler-Toast bei Misserfolg

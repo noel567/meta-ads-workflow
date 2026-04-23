@@ -420,6 +420,18 @@ function SettingsPanel() {
   const [localTimes, setLocalTimes] = useState<Record<string, string>>({});
   const [savingTime, setSavingTime] = useState<string | null>(null);
   const [localStyle, setLocalStyle] = useState<string>("trading");
+  const [testImageUrl, setTestImageUrl] = useState<string | null>(null);
+
+  const testQuoteMutation = trpc.contentBot.testQuote.useMutation({
+    onSuccess: (data) => {
+      setTestImageUrl(data.imageUrl);
+      const styleName = DALLE_STYLES.find((s) => s.id === data.style)?.label ?? data.style;
+      toast.success(`✅ Quote gesendet! Stil: ${styleName}`, { duration: 5000 });
+    },
+    onError: (e) => {
+      toast.error(`Fehler: ${e.message}`);
+    },
+  });
 
   // Sync local state when server data arrives
   const settingsRef = settings;
@@ -573,6 +585,39 @@ function SettingsPanel() {
             <p className="text-sm font-semibold">Standard-Hintergrundstil für Quote of the Day</p>
           </div>
           <p className="text-xs text-muted-foreground">Dieser Stil wird beim automatischen Scheduler-Versand (09:00 Uhr) verwendet.</p>
+
+          {/* Test-Button */}
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              onClick={() => testQuoteMutation.mutate()}
+              disabled={testQuoteMutation.isPending}
+              className="flex items-center gap-2 rounded-md bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {testQuoteMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Generiere Bild… (~20s)</span>
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span>Jetzt testen</span>
+                </>
+              )}
+            </button>
+            {testImageUrl && (
+              <a
+                href={testImageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                Bild ansehen
+              </a>
+            )}
+          </div>
+
           <Select
             value={localStyle}
             onValueChange={(v) => {
