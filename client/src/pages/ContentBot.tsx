@@ -597,7 +597,7 @@ export default function ContentBot() {
           status: "pending" as "pending" | "sent" | "error" | "skipped",
           scheduledAt: new Date(),
           sentAt: null,
-          imageUrl: null,
+          imageUrl: (data as any).imageUrl ?? null,
           userId: 0,
           createdAt: new Date(),
           telegramMessageId: null,

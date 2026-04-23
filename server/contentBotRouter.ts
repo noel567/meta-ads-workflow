@@ -90,6 +90,24 @@ async function sendTelegramPhoto(imgPath: string, caption: string): Promise<stri
   }
 }
 
+/** Erstellt Quote-Bild und lädt es auf S3 hoch – kein Telegram-Versand */
+async function generateQuoteImageUrl(quoteText: string, userId: number): Promise<string | null> {
+  const quoteMatch = quoteText.match(/["\u201e\u201c]([^"\u201c\u201d]+)["\u201d\u201c]/);
+  const authorMatch = quoteText.match(/[\u2014\-]\s*([A-Z][\w\s.]+)/);
+  const quote = quoteMatch?.[1]?.trim() ?? quoteText.slice(0, 120);
+  const author = authorMatch?.[1]?.trim() ?? "EasySignals";
+  try {
+    const imgPath = createQuoteImageFile(quote, author);
+    const imgBuffer = readFileSync(imgPath);
+    const key = `quote-images/${userId}-${Date.now()}.png`;
+    const { url } = await storagePut(key, imgBuffer, "image/png");
+    return url;
+  } catch (e) {
+    console.error("[ContentBot] generateQuoteImageUrl failed:", e);
+    return null;
+  }
+}
+
 /** Generiert Quote-Bild und sendet es; gibt messageId zurueck */
 async function sendQuoteAsImage(quoteText: string, userId: number): Promise<{ messageId: string | null; imageUrl: string | null }> {
   // Zitat und Autor aus dem Text extrahieren (KI-generiertes Format)
@@ -410,15 +428,21 @@ export const contentBotRouter = router({
       const text = await generatePostText(input.type, ctx.user.id);
       const db = await getDb();
       if (!db) throw new Error("Datenbank nicht verfügbar");
+      // Bei Quote: Bild bereits beim Generieren erstellen für Vorschau (kein Telegram-Versand)
+      let imageUrl: string | null = null;
+      if (input.type === "quote") {
+        imageUrl = await generateQuoteImageUrl(text, ctx.user.id);
+      }
       const result = await db.insert(contentPosts).values({
         userId: ctx.user.id,
         type: input.type,
         text,
         scheduledAt: getScheduledTime(timeMap[input.type]),
         status: "pending",
+        ...(imageUrl ? { imageUrl } : {}),
       });
       const id = (result as any).insertId as number;
-      return { id, text, type: input.type };
+      return { id, text, type: input.type, imageUrl };
     }),
 
   // Alle Posts für heute generieren

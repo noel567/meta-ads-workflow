@@ -501,3 +501,8 @@
 - [x] Vorschau: „Jetzt senden“-Button direkt in der Karte
 - [x] Vorschau: „Neu generieren“-Button zum Überschreiben
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Bugfix: Quote-Bild-Vorschau fehlt (April 2026)
+- [x] generatePost (quote): Bild beim Generieren erstellen, imageUrl in DB speichern
+- [x] Frontend: imageUrl aus generatePost-Antwort ins optimistische Update übernehmen
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
