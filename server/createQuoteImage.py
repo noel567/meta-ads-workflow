@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-EasySignals Quote of the Day – Premium Design v3
+EasySignals Quote of the Day – Premium Design v4
+Supports optional DALL-E 3 background via --background_url argument.
 Dark background, gold/white text, candlestick chart, glow curve
 Cinzel + Playfair Display fonts
 """
@@ -8,6 +9,9 @@ import sys
 import os
 import math
 import hashlib
+import argparse
+import urllib.request
+import tempfile
 from datetime import date
 from PIL import Image, ImageDraw, ImageFont
 
@@ -23,7 +27,7 @@ FONT_DIR = "/home/ubuntu/webdev-static-assets/fonts"
 LOGO_PATH = "/home/ubuntu/webdev-static-assets/easysignals_logo_white.png"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Background variants (existing)
+# Background variants (fallback)
 BG_VARIANTS = [
     os.path.join(SCRIPT_DIR, "quote_bg.png"),
     os.path.join(SCRIPT_DIR, "quote_bg_blue.png"),
@@ -121,23 +125,54 @@ def wrap_text_lines(text, font, max_width, draw):
         lines.append(' '.join(cur))
     return lines
 
-def create_quote_image(quote: str, author: str, output_path: str):
-    # Background
+def load_background(background_url: str | None) -> Image.Image:
+    """
+    Lädt den Hintergrund:
+    1. Wenn background_url angegeben → URL herunterladen
+    2. Sonst → tägliche statische Variante
+    3. Fallback → einfarbiger Gradient
+    """
+    # 1. DALL-E 3 URL
+    if background_url:
+        try:
+            print(f"[createQuoteImage] Lade DALL-E 3 Hintergrund: {background_url[:60]}...")
+            with urllib.request.urlopen(background_url, timeout=30) as resp:
+                data = resp.read()
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                f.write(data)
+                tmp_path = f.name
+            img = Image.open(tmp_path).convert("RGBA")
+            img = img.resize((SIZE, SIZE), Image.LANCZOS)
+            os.unlink(tmp_path)
+            # Leicht abdunkeln für bessere Textlesbarkeit
+            dark = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 100))
+            img.alpha_composite(dark)
+            print("[createQuoteImage] DALL-E 3 Hintergrund geladen ✅")
+            return img
+        except Exception as e:
+            print(f"[createQuoteImage] DALL-E 3 Hintergrund fehlgeschlagen: {e} – Fallback auf statisch")
+
+    # 2. Statische tägliche Variante
     bg_path = get_daily_bg()
     if os.path.exists(bg_path):
         img = Image.open(bg_path).convert("RGBA")
         img = img.resize((SIZE, SIZE), Image.LANCZOS)
-        # Darken slightly for text readability
         dark = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 60))
         img.alpha_composite(dark)
-    else:
-        img = Image.new('RGBA', (SIZE, SIZE), (*BG_DARK, 255))
-        # Simple gradient
-        draw_tmp = ImageDraw.Draw(img)
-        for y in range(SIZE):
-            t = y / SIZE
-            r = int(5 + 8 * t); g = int(18 + 20 * t); b = int(12 + 10 * t)
-            draw_tmp.line([(0, y), (SIZE, y)], fill=(r, g, b, 255))
+        return img
+
+    # 3. Gradient Fallback
+    img = Image.new('RGBA', (SIZE, SIZE), (*BG_DARK, 255))
+    draw_tmp = ImageDraw.Draw(img)
+    for y in range(SIZE):
+        t = y / SIZE
+        r = int(5 + 8 * t); g = int(18 + 20 * t); b = int(12 + 10 * t)
+        draw_tmp.line([(0, y), (SIZE, y)], fill=(r, g, b, 255))
+    return img
+
+def create_quote_image(quote: str, author: str, output_path: str, background_url: str | None = None):
+    # Background
+    img = load_background(background_url)
 
     # Candlesticks + glow
     draw_candlesticks(img)
@@ -267,7 +302,10 @@ def create_quote_image(quote: str, author: str, output_path: str):
     print(f"✅ Quote image saved: {output_path}")
 
 if __name__ == "__main__":
-    q = sys.argv[1] if len(sys.argv) > 1 else "The most important thing in making money is not letting your losses get out of hand."
-    a = sys.argv[2] if len(sys.argv) > 2 else "Marty Schwartz"
-    o = sys.argv[3] if len(sys.argv) > 3 else "/tmp/quote_test_v3.png"
-    create_quote_image(q, a, o)
+    parser = argparse.ArgumentParser(description="EasySignals Quote of the Day Image Generator")
+    parser.add_argument("quote", nargs="?", default="The most important thing in making money is not letting your losses get out of hand.")
+    parser.add_argument("author", nargs="?", default="Marty Schwartz")
+    parser.add_argument("output", nargs="?", default="/tmp/quote_test_v4.png")
+    parser.add_argument("--background_url", default=None, help="DALL-E 3 background image URL")
+    args = parser.parse_args()
+    create_quote_image(args.quote, args.author, args.output, background_url=args.background_url)

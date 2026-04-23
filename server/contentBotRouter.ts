@@ -34,8 +34,64 @@ async function sendTelegramMessage(text: string): Promise<string | null> {
   }
 }
 
+/**
+ * Generiert einen einzigartigen Hintergrund via DALL-E 3.
+ * Gibt die URL des generierten Bildes zurück (temporäre OpenAI URL, 1h gültig).
+ */
+async function generateDallE3Background(quote: string, author: string): Promise<string | null> {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) {
+    console.warn("[ContentBot] OPENAI_API_KEY nicht gesetzt – DALL-E 3 übersprungen");
+    return null;
+  }
+
+  // Prompt: Dramatischer Finanz-/Trading-Hintergrund, passend zum Zitat
+  const prompt = `A dramatic, cinematic financial trading background image for a motivational quote by ${author}. 
+Dark, moody atmosphere with deep blacks and dark navy blues. 
+Subtle golden light rays streaming through, suggesting wealth and opportunity. 
+Abstract elements: blurred stock market charts, candlestick patterns, city skyline at night, 
+golden particles floating in the air. 
+Premium luxury aesthetic, high contrast, photorealistic. 
+No text, no people, no faces. 
+1:1 square format. Ultra-high quality.`;
+
+  try {
+    console.log("[ContentBot] DALL-E 3 Hintergrund wird generiert...");
+    const res = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "hd",
+        style: "vivid",
+      }),
+    });
+    const data = await res.json() as any;
+    if (!res.ok) {
+      console.error("[ContentBot] DALL-E 3 API Fehler:", data);
+      return null;
+    }
+    const url = data.data?.[0]?.url;
+    if (!url) {
+      console.error("[ContentBot] DALL-E 3: Keine URL in Antwort", data);
+      return null;
+    }
+    console.log("[ContentBot] DALL-E 3 Hintergrund generiert ✅");
+    return url;
+  } catch (e) {
+    console.error("[ContentBot] DALL-E 3 Fehler:", e);
+    return null;
+  }
+}
+
 /** Generiert ein Quote-Bild via Python/Pillow und gibt den Pfad zurueck */
-function createQuoteImageFile(quote: string, author: string): string {
+function createQuoteImageFile(quote: string, author: string, backgroundUrl?: string): string {
   const imgPath = join(tmpdir(), `quote_${Date.now()}.png`);
   const scriptPath = join(__dirname, "createQuoteImage.py");
   if (!existsSync(scriptPath)) {
@@ -44,7 +100,8 @@ function createQuoteImageFile(quote: string, author: string): string {
   // Sonderzeichen escapen
   const quoteSafe = quote.replace(/"/g, '\\"');
   const authorSafe = author.replace(/"/g, '\\"');
-  execSync(`python3 "${scriptPath}" "${quoteSafe}" "${authorSafe}" "${imgPath}"`, {
+  const bgArg = backgroundUrl ? ` --background_url "${backgroundUrl}"` : "";
+  execSync(`python3 "${scriptPath}" "${quoteSafe}" "${authorSafe}" "${imgPath}"${bgArg}`, {
     timeout: 30000,
   });
   return imgPath;
@@ -97,7 +154,9 @@ async function generateQuoteImageUrl(quoteText: string, userId: number): Promise
   const quote = quoteMatch?.[1]?.trim() ?? quoteText.slice(0, 120);
   const author = authorMatch?.[1]?.trim() ?? "EasySignals";
   try {
-    const imgPath = createQuoteImageFile(quote, author);
+    // DALL-E 3 Hintergrund generieren
+    const backgroundUrl = await generateDallE3Background(quote, author);
+    const imgPath = createQuoteImageFile(quote, author, backgroundUrl ?? undefined);
     const imgBuffer = readFileSync(imgPath);
     const key = `quote-images/${userId}-${Date.now()}.png`;
     const { url } = await storagePut(key, imgBuffer, "image/png");
@@ -121,7 +180,9 @@ async function sendQuoteAsImage(quoteText: string, userId: number): Promise<{ me
   let imageUrl: string | null = null;
 
   try {
-    imgPath = createQuoteImageFile(quote, author);
+    // DALL-E 3 Hintergrund generieren
+    const backgroundUrl = await generateDallE3Background(quote, author);
+    imgPath = createQuoteImageFile(quote, author, backgroundUrl ?? undefined);
     // Bild auf S3 hochladen
     const imgBuffer = readFileSync(imgPath);
     const key = `quote-images/${userId}-${Date.now()}.png`;

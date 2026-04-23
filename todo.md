@@ -506,3 +506,9 @@
 - [x] generatePost (quote): Bild beim Generieren erstellen, imageUrl in DB speichern
 - [x] Frontend: imageUrl aus generatePost-Antwort ins optimistische Update übernehmen
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## DALL-E 3 Quote-Hintergrund (April 2026)
+- [x] DALL-E 3 API-Aufruf in contentBotRouter.ts: einzigartigen Hintergrund pro Quote generieren
+- [x] createQuoteImage.py: --background_url Parameter akzeptieren, Bild herunterladen und als Hintergrund verwenden
+- [x] Fallback auf statische Hintergründe wenn DALL-E 3 fehlschlägt
+- [x] Test: Quote-Bild mit DALL-E 3 Hintergrund generieren und an Telegram senden
