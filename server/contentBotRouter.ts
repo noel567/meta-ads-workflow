@@ -205,18 +205,13 @@ Format: Kurze Absätze, 2–4 Emojis, warmer Abschluss.`;
 Wähle ein bekanntes, inspirierendes Zitat von einem berühmten Trader, Investor oder Unternehmer (z.B. Warren Buffett, Paul Tudor Jones, Jesse Livermore, George Soros, Ray Dalio, Marty Schwartz, Ed Seykota, Mark Douglas).
 Das Zitat soll auf Englisch bleiben (Original), aber der umrahmende Text ist auf Hochdeutsch.
 
-Format (exakt so):
-💬 <b>Quote of the Day</b>
-
+Format (EXAKT so, keine HTML-Tags, keine Emojis im Zitat-Block selbst):
 „[Zitat auf Englisch]“
-
 — [Name des Autors]
 
-[2–3 Sätze Kommentar auf Hochdeutsch: Warum dieses Zitat für Trader relevant ist]
+[2–3 Sätze Kommentar auf professionellem Hochdeutsch: Warum dieses Zitat für Trader relevant ist. KEIN Dialekt, KEINE Ausrufe.]
 
-🚀 EasySignals – Wir spielen das langfristige Spiel.
-
-Verwende HTML-Formatierung: <b> für Fettdruck, <i> für Kursivschrift.`;
+🚀 EasySignals – Wir spielen das langfristige Spiel.`;
   }
 }
 
