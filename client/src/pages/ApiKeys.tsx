@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { Key, Plus, Trash2, Copy, Check, ExternalLink, Eye, EyeOff, Shield, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
+import DashboardLayout from "@/components/DashboardLayout";
 
 export default function ApiKeys() {
   const [, navigate] = useLocation();
@@ -94,13 +95,10 @@ export default function ApiKeys() {
   ];
 
   return (
+    <DashboardLayout>
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2 h-8 px-2 mb-3">
-          <ArrowLeft className="w-4 h-4 mr-1" /> Dashboard
-        </Button>
-      </div>
+      <div></div>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/10">
@@ -323,5 +321,6 @@ export default function ApiKeys() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  </DashboardLayout>
   );
 }

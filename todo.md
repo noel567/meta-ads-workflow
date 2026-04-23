@@ -488,3 +488,9 @@
 - [x] Frontend: Login-Seite – "Passwort vergessen?" Link unter Passwort-Feld
 - [x] App.tsx: /forgot-password und /reset-password/:token Routen registrieren
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Sidebar immer sichtbar (April 2026)
+- [x] Alle Seiten ohne DashboardLayout identifizieren
+- [x] VideoResearch, BudgetRules, ApiKeys, MetaAdsDashboard, AdminUsers in DashboardLayout einbetten
+- [x] Zurück-Buttons auf diesen Seiten entfernen (Sidebar übernimmt Navigation)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

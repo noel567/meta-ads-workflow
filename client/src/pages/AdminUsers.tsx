@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -71,14 +72,11 @@ export default function AdminUsers() {
   });
 
   return (
+    <DashboardLayout>
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3"><div className="flex items-center gap-2">
             <UserCog className="h-5 w-5 text-primary" />
             <h1 className="text-xl font-semibold">User-Verwaltung</h1>
           </div>
@@ -291,5 +289,6 @@ export default function AdminUsers() {
         </DialogContent>
       </Dialog>
     </div>
+  </DashboardLayout>
   );
 }

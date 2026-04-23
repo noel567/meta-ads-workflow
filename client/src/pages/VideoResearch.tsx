@@ -14,6 +14,7 @@ import {
   CheckCircle2, AlertCircle, Clock, Download, ArrowLeft
 } from "lucide-react";
 import { useLocation } from "wouter";
+import DashboardLayout from "@/components/DashboardLayout";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending:      { label: "Wartend",       color: "bg-slate-500/20 text-slate-400",   icon: <Clock className="w-3 h-3" /> },
@@ -424,14 +425,11 @@ export default function VideoResearch() {
   };
 
   return (
+    <DashboardLayout>
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2 h-8 px-2 mb-2">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Dashboard
-          </Button>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <div><h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <Video className="w-6 h-6 text-blue-400" />
             Video Research Pipeline
           </h1>
@@ -633,5 +631,6 @@ export default function VideoResearch() {
         </div>
       )}
     </div>
+    </DashboardLayout>
   );
 }

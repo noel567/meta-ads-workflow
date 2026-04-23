@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -622,6 +623,7 @@ export default function MetaAdsDashboard() {
   };
 
   return (
+    <DashboardLayout>
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Creative Detail Sheet */}
       <CreativeDetailSheet ad={selectedAd} open={detailOpen} onClose={() => setDetailOpen(false)} />
@@ -1005,5 +1007,6 @@ export default function MetaAdsDashboard() {
         </TabsContent>
       </Tabs>
     </div>
+    </DashboardLayout>
   );
 }

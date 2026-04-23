@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Play, Trash2, ChevronDown, ChevronUp, RefreshCw, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
+import DashboardLayout from "@/components/DashboardLayout";
 
 const METRIC_LABELS: Record<string, string> = {
   cpl: "CPL (Kosten/Lead)",
@@ -180,14 +181,11 @@ export default function BudgetRules() {
   const activeRules = rules.filter(r => r.active).length;
 
   return (
+    <DashboardLayout>
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2 h-8 px-2 mb-2">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Dashboard
-          </Button>
-          <h1 className="text-2xl font-bold text-foreground">Budget-Regeln</h1>
+        <div><h1 className="text-2xl font-bold text-foreground">Budget-Regeln</h1>
           <p className="text-muted-foreground mt-1">
             Automatische Budgetanpassungen basierend auf Meta Ads KPIs — täglich um 10:10 Uhr CEST
           </p>
@@ -606,5 +604,6 @@ export default function BudgetRules() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  </DashboardLayout>
   );
 }
