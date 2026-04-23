@@ -34,26 +34,52 @@ async function sendTelegramMessage(text: string): Promise<string | null> {
   }
 }
 
+// ─── DALL-E 3 Stil-Definitionen ─────────────────────────────────────────────
+export const DALLE_STYLES = [
+  { id: "trading",      label: "Trading",        emoji: "📈", description: "Börsenraum, Charts, Kerzen" },
+  { id: "skyline",      label: "Skyline",         emoji: "🌆", description: "Stadtsilhouette bei Nacht" },
+  { id: "abstract",    label: "Abstrakt",         emoji: "🎨", description: "Geometrische Formen, Farben" },
+  { id: "nature",      label: "Natur",            emoji: "🌿", description: "Berge, Meer, Landschaft" },
+  { id: "gold",        label: "Gold & Luxus",     emoji: "✨", description: "Goldene Partikel, Luxus" },
+  { id: "dark_minimal",label: "Dark Minimal",     emoji: "◼",  description: "Dunkel, minimalistisch" },
+  { id: "cosmic",      label: "Kosmos",           emoji: "🌌", description: "Galaxien, Sterne, Weltraum" },
+  { id: "luxury",      label: "Luxus-Interieur",  emoji: "🏛️", description: "Marmor, Penthouse, Eleganz" },
+] as const;
+
+export type DalleStyleId = typeof DALLE_STYLES[number]["id"];
+
+const DALLE_STYLE_PROMPTS: Record<DalleStyleId, (author: string) => string> = {
+  trading: (author) =>
+    `A dramatic, cinematic financial trading background for a motivational quote by ${author}. Dark moody atmosphere, deep blacks and dark navy blues. Subtle golden light rays, blurred stock market charts, candlestick patterns, city skyline at night, golden particles. Premium luxury aesthetic, high contrast, photorealistic. No text, no people, no faces. 1:1 square format. Ultra-high quality.`,
+  skyline: (author) =>
+    `A breathtaking city skyline at night background for a motivational quote by ${author}. Towering skyscrapers with glowing windows reflected in dark water below. Deep indigo sky with subtle stars, golden and amber city lights. Cinematic wide angle, no text, no people, no faces. 1:1 square format. Ultra-high quality photorealistic.`,
+  abstract: (author) =>
+    `An abstract geometric background for a motivational quote by ${author}. Bold geometric shapes, dynamic diagonal lines, deep navy and electric blue with gold accents. Flowing light streaks, layered translucent polygons. Modern, energetic, premium design aesthetic. No text, no people, no faces. 1:1 square format. Ultra-high quality.`,
+  nature: (author) =>
+    `A majestic natural landscape background for a motivational quote by ${author}. Dramatic mountain peaks at golden hour, misty valleys, deep forest in the foreground. Warm amber and deep teal tones, cinematic lighting, epic scale. No text, no people, no faces. 1:1 square format. Ultra-high quality photorealistic.`,
+  gold: (author) =>
+    `A luxurious golden particles background for a motivational quote by ${author}. Swirling gold dust and glowing particles on deep black background. Bokeh light orbs, shimmering metallic streaks, premium wealth aesthetic. No text, no people, no faces. 1:1 square format. Ultra-high quality.`,
+  dark_minimal: (author) =>
+    `A dark minimalist background for a motivational quote by ${author}. Pure deep black with a single subtle gradient from charcoal to near-black. One thin horizontal light line or subtle geometric accent in muted gold. Extreme minimalism, premium, editorial. No text, no people, no faces. 1:1 square format. Ultra-high quality.`,
+  cosmic: (author) =>
+    `A cosmic galaxy background for a motivational quote by ${author}. Deep space with swirling nebula in deep purple, midnight blue and teal. Thousands of stars, a distant galaxy spiral, cosmic dust clouds. Awe-inspiring, cinematic, photorealistic. No text, no people, no faces. 1:1 square format. Ultra-high quality.`,
+  luxury: (author) =>
+    `A luxury interior background for a motivational quote by ${author}. Marble floor with gold veins, floor-to-ceiling windows overlooking a city at night, dramatic indirect lighting. Deep shadows, warm amber highlights, ultra-premium penthouse aesthetic. No text, no people, no faces. 1:1 square format. Ultra-high quality photorealistic.`,
+};
+
 /**
  * Generiert einen einzigartigen Hintergrund via DALL-E 3.
  * Gibt die URL des generierten Bildes zurück (temporäre OpenAI URL, 1h gültig).
  */
-async function generateDallE3Background(quote: string, author: string): Promise<string | null> {
+async function generateDallE3Background(quote: string, author: string, style: DalleStyleId = "trading"): Promise<string | null> {
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) {
     console.warn("[ContentBot] OPENAI_API_KEY nicht gesetzt – DALL-E 3 übersprungen");
     return null;
   }
 
-  // Prompt: Dramatischer Finanz-/Trading-Hintergrund, passend zum Zitat
-  const prompt = `A dramatic, cinematic financial trading background image for a motivational quote by ${author}. 
-Dark, moody atmosphere with deep blacks and dark navy blues. 
-Subtle golden light rays streaming through, suggesting wealth and opportunity. 
-Abstract elements: blurred stock market charts, candlestick patterns, city skyline at night, 
-golden particles floating in the air. 
-Premium luxury aesthetic, high contrast, photorealistic. 
-No text, no people, no faces. 
-1:1 square format. Ultra-high quality.`;
+  const promptFn = DALLE_STYLE_PROMPTS[style] ?? DALLE_STYLE_PROMPTS.trading;
+  const prompt = promptFn(author);
 
   try {
     console.log("[ContentBot] DALL-E 3 Hintergrund wird generiert...");
@@ -148,14 +174,14 @@ async function sendTelegramPhoto(imgPath: string, caption: string): Promise<stri
 }
 
 /** Erstellt Quote-Bild und lädt es auf S3 hoch – kein Telegram-Versand */
-async function generateQuoteImageUrl(quoteText: string, userId: number): Promise<{ imageUrl: string | null; dalleBackgroundUrl: string | null }> {
+async function generateQuoteImageUrl(quoteText: string, userId: number, style: DalleStyleId = "trading"): Promise<{ imageUrl: string | null; dalleBackgroundUrl: string | null }> {
   const quoteMatch = quoteText.match(/["\u201e\u201c]([^"\u201c\u201d]+)["\u201d\u201c]/);
   const authorMatch = quoteText.match(/[\u2014\-]\s*([A-Z][\w\s.]+)/);
   const quote = quoteMatch?.[1]?.trim() ?? quoteText.slice(0, 120);
   const author = authorMatch?.[1]?.trim() ?? "EasySignals";
   try {
     // DALL-E 3 Hintergrund generieren
-    const dalleBackgroundUrl = await generateDallE3Background(quote, author);
+    const dalleBackgroundUrl = await generateDallE3Background(quote, author, style);
     const imgPath = createQuoteImageFile(quote, author, dalleBackgroundUrl ?? undefined);
     const imgBuffer = readFileSync(imgPath);
     const key = `quote-images/${userId}-${Date.now()}.png`;
@@ -470,6 +496,7 @@ export const contentBotRouter = router({
   generatePost: protectedProcedure
     .input(z.object({
       type: z.enum(["mindset", "recap", "social_proof", "scarcity", "evening_recap", "quote"]),
+      backgroundStyle: z.enum(["trading", "skyline", "abstract", "nature", "gold", "dark_minimal", "cosmic", "luxury"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const settings = await getSettings(ctx.user.id);
@@ -487,8 +514,9 @@ export const contentBotRouter = router({
       // Bei Quote: Bild bereits beim Generieren erstellen für Vorschau (kein Telegram-Versand)
       let imageUrl: string | null = null;
       let dalleBackgroundUrl: string | null = null;
+      const chosenStyle: DalleStyleId = (input.backgroundStyle as DalleStyleId) ?? "trading";
       if (input.type === "quote") {
-        const result = await generateQuoteImageUrl(text, ctx.user.id);
+        const result = await generateQuoteImageUrl(text, ctx.user.id, chosenStyle);
         imageUrl = result.imageUrl;
         dalleBackgroundUrl = result.dalleBackgroundUrl;
       }
@@ -500,9 +528,10 @@ export const contentBotRouter = router({
         status: "pending",
         ...(imageUrl ? { imageUrl } : {}),
         ...(dalleBackgroundUrl ? { dalleBackgroundUrl } : {}),
+        ...(input.type === "quote" ? { backgroundStyle: chosenStyle } : {}),
       });
       const id = (result as any).insertId as number;
-      return { id, text, type: input.type, imageUrl, dalleBackgroundUrl };
+      return { id, text, type: input.type, imageUrl, dalleBackgroundUrl, backgroundStyle: chosenStyle };
     }),
 
   // Alle Posts für heute generieren

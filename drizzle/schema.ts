@@ -547,6 +547,7 @@ export const contentPosts = mysqlTable("content_posts", {
   telegramMessageId: varchar("telegramMessageId", { length: 64 }),
   imageUrl: text("imageUrl"),
   dalleBackgroundUrl: text("dalleBackgroundUrl"),
+  backgroundStyle: varchar("backgroundStyle", { length: 32 }),
   errorMessage: text("errorMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

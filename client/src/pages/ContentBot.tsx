@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Bot,
   Send,
@@ -29,7 +30,20 @@ import {
   X,
 } from "lucide-react";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// // ─── DALL-E 3 Stile (gespiegelt vom Server) ────────────────────────────────────────────────────────────────
+const DALLE_STYLES = [
+  { id: "trading",      label: "Trading",        emoji: "📈", description: "Börsenraum, Charts, Kerzen" },
+  { id: "skyline",      label: "Skyline",         emoji: "🌆", description: "Stadtsilhouette bei Nacht" },
+  { id: "abstract",    label: "Abstrakt",         emoji: "🎨", description: "Geometrische Formen, Farben" },
+  { id: "nature",      label: "Natur",            emoji: "🌿", description: "Berge, Meer, Landschaft" },
+  { id: "gold",        label: "Gold & Luxus",     emoji: "✨", description: "Goldene Partikel, Luxus" },
+  { id: "dark_minimal",label: "Dark Minimal",     emoji: "◼",  description: "Dunkel, minimalistisch" },
+  { id: "cosmic",      label: "Kosmos",           emoji: "🌌", description: "Galaxien, Sterne, Weltraum" },
+  { id: "luxury",      label: "Luxus-Interieur",  emoji: "🏛️", description: "Marmor, Penthouse, Eleganz" },
+] as const;
+type DalleStyleId = typeof DALLE_STYLES[number]["id"];
+
+// ─── Types ────────────────────────────────────────────────────────────────
 type PostType = "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap" | "quote";
 
 const POST_TYPE_CONFIG: Record<PostType, { label: string; emoji: string; defaultTime: string; description: string }> = {
@@ -126,8 +140,8 @@ function PostCard({
   isGenerating,
 }: {
   type: PostType;
-  post?: { id: number; text: string; status: string; scheduledAt: Date | string; sentAt?: Date | string | null; imageUrl?: string | null; dalleBackgroundUrl?: string | null };
-  onGenerate: (type: PostType) => void;
+  post?: { id: number; text: string; status: string; scheduledAt: Date | string; sentAt?: Date | string | null; imageUrl?: string | null; dalleBackgroundUrl?: string | null; backgroundStyle?: string | null };
+  onGenerate: (type: PostType, style?: DalleStyleId) => void;
   onSend: (postId: number) => void;
   onDelete: (postId: number) => void;
   isGenerating: boolean;
@@ -135,6 +149,7 @@ function PostCard({
   const config = POST_TYPE_CONFIG[type];
   const [editText, setEditText] = useState<string | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<DalleStyleId>("trading");
   const utils = trpc.useUtils();
 
   const updateMutation = trpc.contentBot.updatePostText.useMutation({
@@ -173,10 +188,31 @@ function PostCard({
         {!post ? (
           <div className="flex flex-col items-center justify-center py-6 gap-3 border border-dashed border-border/50 rounded-lg">
             <p className="text-sm text-muted-foreground">Noch kein Post generiert</p>
+            {type === "quote" && (
+              <div className="w-full px-2 space-y-1.5">
+                <p className="text-xs text-muted-foreground text-center">Hintergrundstil wählen</p>
+                <Select value={selectedStyle} onValueChange={(v) => setSelectedStyle(v as DalleStyleId)}>
+                  <SelectTrigger className="w-full h-8 text-xs bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DALLE_STYLES.map((s) => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">
+                        <span className="flex items-center gap-2">
+                          <span>{s.emoji}</span>
+                          <span className="font-medium">{s.label}</span>
+                          <span className="text-muted-foreground hidden sm:inline">– {s.description}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <Button
               size="sm"
               variant="outline"
-              onClick={() => onGenerate(type)}
+              onClick={() => onGenerate(type, type === "quote" ? selectedStyle : undefined)}
               disabled={isGenerating}
               className="gap-2"
             >
@@ -251,9 +287,19 @@ function PostCard({
             {/* DALL-E 3 Hintergrund + finales Quote-Bild Vorschau */}
             {type === "quote" && (post.dalleBackgroundUrl || post.imageUrl) && (
               <div className="space-y-2">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-                  <Sparkles className="h-3 w-3 text-amber-400" />
-                  DALL-E 3 Vorschau
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                    <Sparkles className="h-3 w-3 text-amber-400" />
+                    DALL-E 3 Vorschau
+                  </div>
+                  {post.backgroundStyle && (() => {
+                    const styleInfo = DALLE_STYLES.find(s => s.id === post.backgroundStyle);
+                    return styleInfo ? (
+                      <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-500/30 text-amber-400/80">
+                        {styleInfo.emoji} {styleInfo.label}
+                      </Badge>
+                    ) : null;
+                  })()}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {/* DALL-E 3 Hintergrundbild */}
@@ -682,6 +728,7 @@ export default function ContentBot() {
           sentAt: null,
           imageUrl: (data as any).imageUrl ?? null,
           dalleBackgroundUrl: (data as any).dalleBackgroundUrl ?? null,
+          backgroundStyle: (data as any).backgroundStyle ?? null,
           userId: 0,
           createdAt: new Date(),
           telegramMessageId: null,
@@ -748,9 +795,9 @@ export default function ContentBot() {
     onError: (e) => toast.error(`Report fehlgeschlagen: ${e.message}`),
   });
 
-  const handleGenerate = (type: PostType) => {
+  const handleGenerate = (type: PostType, style?: DalleStyleId) => {
     setGeneratingType(type);
-    generateMutation.mutate({ type });
+    generateMutation.mutate({ type, ...(style ? { backgroundStyle: style } : {}) });
   };
 
   const handleGenerateAll = () => {

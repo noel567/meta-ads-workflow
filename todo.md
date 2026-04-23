@@ -520,3 +520,11 @@
 - [x] Frontend: Quote-Karte zeigt DALL-E 3 Hintergrundbild als Vorschau (klein, links)
 - [x] Frontend: "Neuen Hintergrund generieren" Button in Quote-Karte (via Neu generieren)
 - [x] Frontend: Vollbild-Vorschau des finalen Quote-Bildes (imageUrl) per Klick (Lightbox)
+
+## DALL-E 3 Hintergrundstil-Dropdown (April 2026)
+- [x] Backend: backgroundStyle Parameter in generatePost Procedure (optional, default "trading")
+- [x] Backend: 8 Stil-Varianten mit eigenen DALL-E 3 Prompts (trading, skyline, abstract, nature, gold, dark_minimal, cosmic, luxury)
+- [x] Backend: backgroundStyle in DB speichern (neues Feld in content_posts)
+- [x] Frontend: Stil-Dropdown in Quote-Karte (vor Generierung auswählbar)
+- [x] Frontend: Stil-Labels auf Deutsch mit Emoji-Icons
+- [x] Frontend: Gewählter Stil bleibt nach Generierung sichtbar (Badge)
