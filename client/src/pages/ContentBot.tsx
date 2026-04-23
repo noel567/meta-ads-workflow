@@ -246,13 +246,31 @@ function PostCard({
                 </div>
               </div>
             ) : (
-              <div
-                className="text-sm whitespace-pre-wrap bg-background/30 rounded-lg p-3 border border-border/30 cursor-pointer hover:border-border/60 transition-colors min-h-[80px]"
-                onClick={() => setEditText(post.text)}
-                title="Klicken zum Bearbeiten"
-              >
-                {post.text}
-              </div>
+              // Bei Quote: Bild-Vorschau statt Text anzeigen (Text ist nur intern)
+              type === "quote" && post.imageUrl ? (
+                <div
+                  className="relative rounded-lg overflow-hidden cursor-pointer group border border-border/30"
+                  onClick={() => setLightboxSrc(post.imageUrl!)}
+                  title="Klicken für Vollbild"
+                >
+                  <img
+                    src={post.imageUrl}
+                    alt="Quote of the Day"
+                    className="w-full object-cover rounded-lg"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <Maximize2 className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="text-sm whitespace-pre-wrap bg-background/30 rounded-lg p-3 border border-border/30 cursor-pointer hover:border-border/60 transition-colors min-h-[80px]"
+                  onClick={() => setEditText(post.text)}
+                  title="Klicken zum Bearbeiten"
+                >
+                  {post.text}
+                </div>
+              )
             )}
             {/* Stil-Dropdown + Aktions-Buttons */}
             {type === "quote" && (

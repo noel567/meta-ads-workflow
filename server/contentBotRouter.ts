@@ -220,9 +220,8 @@ async function sendQuoteAsImage(quoteText: string, userId: number): Promise<{ me
     return { messageId, imageUrl };
   } catch (e) {
     console.error("[ContentBot] sendQuoteAsImage failed:", e);
-    // Fallback: Text senden
-    const messageId = await sendTelegramMessage(quoteText);
-    return { messageId, imageUrl };
+    // Kein Text-Fallback – Quote wird nur als Bild gesendet
+    return { messageId: null, imageUrl };
   }
 }
 
