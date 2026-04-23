@@ -27,7 +27,8 @@ import { adCommentsRouter } from "./adCommentsRouter";
 import { budgetRulesRouter } from "./budgetRulesRouter";
 import { driveToMetaRouter } from "./driveToMetaRouter";
 import { contentBotRouter } from "./contentBotRouter";
-import { createApiKey, getApiKeysByUser, revokeApiKey } from "./db";
+import { createApiKey, getApiKeysByUser, revokeApiKey, getAllUsers, createUserWithPassword, updateUserPassword, deleteUser } from "./db";
+import bcrypt from "bcryptjs";
 import { ENV } from "./_core/env";
 
 // ─── Meta API Helper ──────────────────────────────────────────────────────────
@@ -1487,13 +1488,55 @@ export const appRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {
       return getApiKeysByUser(ctx.user.id);
     }),
-    revoke: protectedProcedure
+     revoke: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await revokeApiKey(input.id, ctx.user.id);
         return { success: true };
       }),
   }),
-});
 
+  // ─── Admin User Management ─────────────────────────────────────────────────────────────────────────────────
+  adminUsers: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new Error("Nur Admins dürfen User verwalten");
+      const allUsers = await getAllUsers();
+      return allUsers.map(u => ({ ...u, passwordHash: undefined }));
+    }),
+    create: protectedProcedure
+      .input(z.object({
+        username: z.string().min(3).max(64).regex(/^[a-z0-9_]+$/, "Nur Kleinbuchstaben, Zahlen und _ erlaubt"),
+        password: z.string().min(6),
+        name: z.string().optional(),
+        role: z.enum(["user", "admin"]).default("user"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new Error("Nur Admins dürfen User erstellen");
+        const passwordHash = await bcrypt.hash(input.password, 12);
+        const id = await createUserWithPassword({
+          username: input.username.toLowerCase(),
+          passwordHash,
+          name: input.name ?? input.username,
+          role: input.role,
+        });
+        return { success: true, id };
+      }),
+    resetPassword: protectedProcedure
+      .input(z.object({ userId: z.number(), newPassword: z.string().min(6) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new Error("Nur Admins dürfen Passwörter zurücksetzen");
+        const passwordHash = await bcrypt.hash(input.newPassword, 12);
+        await updateUserPassword(input.userId, passwordHash);
+        return { success: true };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new Error("Nur Admins dürfen User löschen");
+        if (input.userId === ctx.user.id) throw new Error("Du kannst dich nicht selbst löschen");
+        await deleteUser(input.userId);
+        return { success: true };
+      }),
+  }),
+});
 export type AppRouter = typeof appRouter;

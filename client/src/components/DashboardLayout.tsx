@@ -40,6 +40,8 @@ import {
   CloudUpload,
   Key,
   Bot,
+  UserCog,
+  ShieldCheck,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -65,6 +67,10 @@ const menuItems = [
   { icon: MonitorPlay, label: "Teleprompter", path: "/teleprompter" },
   { icon: FileText, label: "Dokumente", path: "/documents" },
   { icon: Settings, label: "Einstellungen", path: "/settings" },
+];
+
+const adminMenuItems = [
+  { icon: UserCog, label: "User-Verwaltung", path: "/admin/users" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -136,7 +142,8 @@ function DashboardLayoutContent({
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
-  const activeMenuItem = menuItems.find((item) => item.path === location);
+  const allMenuItems = [...menuItems, ...adminMenuItems];
+  const activeMenuItem = allMenuItems.find((item) => item.path === location);
 
   // Fetch connection status for badge
   const { data: connection } = trpc.meta.getConnection.useQuery();
@@ -227,6 +234,39 @@ function DashboardLayoutContent({
                 );
               })}
             </SidebarMenu>
+            {user?.role === "admin" && (
+              <>
+                {!isCollapsed && (
+                  <div className="px-4 pt-3 pb-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 flex items-center gap-1.5">
+                      <ShieldCheck className="h-3 w-3" /> Admin
+                    </p>
+                  </div>
+                )}
+                <SidebarMenu className="px-2 gap-0.5">
+                  {adminMenuItems.map((item) => {
+                    const isActive = location === item.path || location.startsWith(item.path);
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => setLocation(item.path)}
+                          tooltip={item.label}
+                          className={`h-9 transition-all font-normal text-sm ${
+                            isActive
+                              ? "bg-primary/10 text-primary hover:bg-primary/15"
+                              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                          }`}
+                        >
+                          <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-primary" : ""}`} />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </>
+            )}
           </SidebarContent>
 
           {/* Footer */}

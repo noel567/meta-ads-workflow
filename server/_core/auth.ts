@@ -13,6 +13,7 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import nodemailer from "nodemailer";
+import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
 import * as db from "../db";
@@ -53,7 +54,7 @@ function saveOtpStore(store: Map<string, OtpEntry>) {
 
 function cleanupExpiredOtps(store: Map<string, OtpEntry>) {
   const now = Date.now();
-  for (const [key, entry] of store.entries()) {
+  for (const [key, entry] of Array.from(store.entries())) {
     if (entry.expiresAt < now) store.delete(key);
   }
 }
@@ -260,6 +261,37 @@ export function registerAuthRoutes(app: Express) {
     });
 
     const user = await db.getUserByOpenId(openId);
+    res.json({ success: true, user });
+  });
+
+  // POST /api/auth/login (username + password)
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    const { username, password } = req.body as { username?: string; password?: string };
+    if (!username || !password) {
+      res.status(400).json({ error: "Benutzername und Passwort erforderlich" });
+      return;
+    }
+    const user = await db.getUserByUsername(username.trim().toLowerCase());
+    if (!user || !user.passwordHash) {
+      res.status(401).json({ error: "Ungültige Anmeldedaten" });
+      return;
+    }
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Ungültige Anmeldedaten" });
+      return;
+    }
+    // Update lastSignedIn
+    await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
+    const sessionToken = await createSessionToken(user.openId);
+    const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https";
+    res.cookie(COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: "lax",
+      maxAge: ONE_YEAR_MS,
+      path: "/",
+    });
     res.json({ success: true, user });
   });
 

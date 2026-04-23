@@ -21,6 +21,7 @@ import DriveToMeta from "./pages/DriveToMeta";
 import ApiKeys from "./pages/ApiKeys";
 import ContentBot from "./pages/ContentBot";
 import Login from "./pages/Login";
+import AdminUsers from "./pages/AdminUsers";
 import { useAuth } from "./_core/hooks/useAuth";
 
 function ProtectedRouter() {
@@ -58,6 +59,7 @@ function ProtectedRouter() {
       <Route path="/drive-to-meta" component={DriveToMeta} />
       <Route path="/api-keys" component={ApiKeys} />
       <Route path="/content-bot" component={ContentBot} />
+      <Route path="/admin/users" component={AdminUsers} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

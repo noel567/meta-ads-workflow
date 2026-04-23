@@ -462,3 +462,16 @@
 - [x] Schema: keyPreview varchar(16) → varchar(32) in drizzle/schema.ts
 - [x] DB: ALTER TABLE api_keys MODIFY keyPreview varchar(32)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Username/Password Login + User-Management (April 2026)
+- [x] DB: users Tabelle – username (varchar 64, unique) + passwordHash (varchar 255) Felder hinzufügen
+- [x] DB: Migration per ALTER TABLE anwenden
+- [x] Backend: POST /api/auth/login (username + password → session cookie)
+- [x] Backend: tRPC adminUsers.create (Admin erstellt User mit username + password)
+- [x] Backend: tRPC adminUsers.list (Admin sieht alle User)
+- [x] Backend: tRPC adminUsers.delete (Admin löscht User)
+- [x] Backend: tRPC adminUsers.resetPassword (Admin setzt neues Passwort)
+- [x] Frontend: Login-Seite um Username/Password-Tab erweitern (neben OTP)
+- [x] Frontend: Admin-Seite /admin/users – User anlegen, auflisten, löschen, Passwort zurücksetzen
+- [x] Sidebar: Admin-Eintrag nur für role=admin sichtbar
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
