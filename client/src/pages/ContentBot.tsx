@@ -254,6 +254,28 @@ function PostCard({
                 {post.text}
               </div>
             )}
+            {/* Stil-Dropdown + Aktions-Buttons */}
+            {type === "quote" && (
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">Hintergrundstil</p>
+                <Select value={selectedStyle} onValueChange={(v) => setSelectedStyle(v as DalleStyleId)}>
+                  <SelectTrigger className="w-full h-8 text-xs bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DALLE_STYLES.map((s) => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">
+                        <span className="flex items-center gap-2">
+                          <span>{s.emoji}</span>
+                          <span className="font-medium">{s.label}</span>
+                          <span className="text-muted-foreground hidden sm:inline">– {s.description}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center gap-2 flex-wrap">
               {post.status !== "sent" && (
                 <Button
@@ -268,7 +290,7 @@ function PostCard({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onGenerate(type)}
+                onClick={() => onGenerate(type, type === "quote" ? selectedStyle : undefined)}
                 disabled={isGenerating}
                 className="gap-1.5"
               >

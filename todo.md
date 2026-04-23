@@ -528,3 +528,7 @@
 - [x] Frontend: Stil-Dropdown in Quote-Karte (vor Generierung auswählbar)
 - [x] Frontend: Stil-Labels auf Deutsch mit Emoji-Icons
 - [x] Frontend: Gewählter Stil bleibt nach Generierung sichtbar (Badge)
+
+## Bug: Stil-Dropdown fehlt bei bestehendem Quote-Post (April 2026)
+- [x] Stil-Dropdown auch im bestehenden Post-Zustand (neben "Neu generieren" Button) anzeigen
+- [x] "Neu generieren" übergibt den gewählten Stil korrekt an generateMutation
