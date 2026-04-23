@@ -578,7 +578,10 @@ function HistoryPanel() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ContentBot() {
   const utils = trpc.useUtils();
-  const { data: todaysPosts, isLoading } = trpc.contentBot.getTodaysPosts.useQuery();
+  const { data: todaysPosts, isLoading, refetch: refetchPosts } = trpc.contentBot.getTodaysPosts.useQuery(
+    undefined,
+    { staleTime: 0, refetchOnWindowFocus: true }
+  );
 
   const [generatingType, setGeneratingType] = useState<PostType | null>(null);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
@@ -605,8 +608,9 @@ export default function ContentBot() {
         const filtered = old.filter((p: any) => p.type !== data.type);
         return [...filtered, newPost];
       });
-      // Danach noch invalidieren um frische Daten zu holen
+      // Danach noch invalidieren und sofort refetchen um frische Daten zu holen
       utils.contentBot.getTodaysPosts.invalidate();
+      refetchPosts();
       setGeneratingType(null);
       toast.success("✅ Post generiert – Vorschau bereit!");
     },

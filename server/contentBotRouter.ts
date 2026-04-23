@@ -315,8 +315,10 @@ async function upsertSettings(userId: number, data: Partial<typeof contentBotSet
 async function getTodaysPosts(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  const start = new Date(); start.setHours(0, 0, 0, 0);
-  const end = new Date(); end.setHours(23, 59, 59, 999);
+  // Zurich-Zeit für Datumsfilter verwenden (konsistent mit getScheduledTime)
+  const todayZurich = zurichDateStr();
+  const start = zurichTimeToDate(todayZurich, "00:00");
+  const end = zurichTimeToDate(todayZurich, "23:59");
   return db.select().from(contentPosts)
     .where(and(
       eq(contentPosts.userId, userId),
