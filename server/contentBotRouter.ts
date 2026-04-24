@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { execSync } from "child_process";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { createQuoteImage } from "./createQuoteImage";
 import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
@@ -92,26 +92,9 @@ async function generateDallE3Background(quote: string, author: string, style: Da
 }
 
 /** Generiert ein Quote-Bild via Python/Pillow und gibt den Pfad zurueck */
-function createQuoteImageFile(quote: string, author: string, backgroundUrl?: string): string {
+async function createQuoteImageFile(quote: string, author: string, backgroundUrl?: string): Promise<string> {
   const imgPath = join(tmpdir(), `quote_${Date.now()}.png`);
-  // tsx laeuft als ESM – __dirname ist nicht definiert; process.cwd() zeigt auf Projekt-Root
-  const scriptPath = join(process.cwd(), "server", "createQuoteImage.py");
-  if (!existsSync(scriptPath)) {
-    throw new Error(`Quote-Image-Script nicht gefunden: ${scriptPath} (cwd: ${process.cwd()})`);
-  }
-  // Sonderzeichen escapen
-  const quoteSafe = quote.replace(/"/g, '\\"');
-  const authorSafe = author.replace(/"/g, '\\"');
-  const bgArg = backgroundUrl ? ` --background_url "${backgroundUrl}"` : "";
-  // Fix: PYTHONHOME/PYTHONPATH entfernen damit python3.11 nicht uv-Python 3.13 Libs laedt
-  const cleanEnv = { ...process.env };
-  delete cleanEnv.PYTHONHOME;
-  delete cleanEnv.PYTHONPATH;
-  delete cleanEnv.NUITKA_PYTHONPATH;
-  execSync(`/usr/bin/python3.11 "${scriptPath}" "${quoteSafe}" "${authorSafe}" "${imgPath}"${bgArg}`, {
-    timeout: 30000,
-    env: cleanEnv,
-  });
+  await createQuoteImage(quote, author, imgPath, backgroundUrl);
   return imgPath;
 }
 
@@ -121,7 +104,7 @@ async function sendTelegramPhoto(imgPath: string, caption: string): Promise<stri
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!botToken || !chatId) return null;
   try {
-    const imgBuffer = readFileSync(imgPath);
+    const imgBuffer = readFileSync(imgPath as string);
     const boundary = `----FormBoundary${Date.now()}`;
     const CRLF = "\r\n";
     const captionPart = caption
@@ -164,7 +147,7 @@ async function generateQuoteImageUrl(quoteText: string, userId: number, style: D
   try {
     // DALL-E 3 Hintergrund generieren
     const dalleBackgroundUrl = await generateDallE3Background(quote, author, style);
-    const imgPath = createQuoteImageFile(quote, author, dalleBackgroundUrl ?? undefined);
+    const imgPath = await createQuoteImageFile(quote, author, dalleBackgroundUrl ?? undefined);
     const imgBuffer = readFileSync(imgPath);
     const key = `quote-images/${userId}-${Date.now()}.png`;
     const { url } = await storagePut(key, imgBuffer, "image/png");
@@ -190,9 +173,9 @@ async function sendQuoteAsImage(quoteText: string, userId: number, style: DalleS
   try {
     // DALL-E 3 Hintergrund generieren (Stil aus Settings)
     const backgroundUrl = await generateDallE3Background(quote, author, style);
-    imgPath = createQuoteImageFile(quote, author, backgroundUrl ?? undefined);
+    imgPath = await createQuoteImageFile(quote, author, backgroundUrl ?? undefined);
     // Bild auf S3 hochladen
-    const imgBuffer = readFileSync(imgPath);
+    const imgBuffer = readFileSync(imgPath as string);
     const key = `quote-images/${userId}-${Date.now()}.png`;
     const { url } = await storagePut(key, imgBuffer, "image/png");
     imageUrl = url;
