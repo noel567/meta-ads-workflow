@@ -94,10 +94,8 @@ async function generateDallE3Background(quote: string, author: string, style: Da
 /** Generiert ein Quote-Bild via Python/Pillow und gibt den Pfad zurueck */
 function createQuoteImageFile(quote: string, author: string, backgroundUrl?: string): string {
   const imgPath = join(tmpdir(), `quote_${Date.now()}.png`);
-  // __dirname zeigt zur Laufzeit auf das transpilierte Verzeichnis, daher process.cwd() nutzen
-  const scriptPath = existsSync(join(__dirname, "createQuoteImage.py"))
-    ? join(__dirname, "createQuoteImage.py")
-    : join(process.cwd(), "server", "createQuoteImage.py");
+  // tsx laeuft als ESM – __dirname ist nicht definiert; process.cwd() zeigt auf Projekt-Root
+  const scriptPath = join(process.cwd(), "server", "createQuoteImage.py");
   if (!existsSync(scriptPath)) {
     throw new Error(`Quote-Image-Script nicht gefunden: ${scriptPath} (cwd: ${process.cwd()})`);
   }
@@ -105,8 +103,14 @@ function createQuoteImageFile(quote: string, author: string, backgroundUrl?: str
   const quoteSafe = quote.replace(/"/g, '\\"');
   const authorSafe = author.replace(/"/g, '\\"');
   const bgArg = backgroundUrl ? ` --background_url "${backgroundUrl}"` : "";
-  execSync(`python3 "${scriptPath}" "${quoteSafe}" "${authorSafe}" "${imgPath}"${bgArg}`, {
+  // Fix: PYTHONHOME/PYTHONPATH entfernen damit python3.11 nicht uv-Python 3.13 Libs laedt
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.PYTHONHOME;
+  delete cleanEnv.PYTHONPATH;
+  delete cleanEnv.NUITKA_PYTHONPATH;
+  execSync(`/usr/bin/python3.11 "${scriptPath}" "${quoteSafe}" "${authorSafe}" "${imgPath}"${bgArg}`, {
     timeout: 30000,
+    env: cleanEnv,
   });
   return imgPath;
 }
