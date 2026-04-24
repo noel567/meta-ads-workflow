@@ -94,9 +94,12 @@ async function generateDallE3Background(quote: string, author: string, style: Da
 /** Generiert ein Quote-Bild via Python/Pillow und gibt den Pfad zurueck */
 function createQuoteImageFile(quote: string, author: string, backgroundUrl?: string): string {
   const imgPath = join(tmpdir(), `quote_${Date.now()}.png`);
-  const scriptPath = join(__dirname, "createQuoteImage.py");
+  // __dirname zeigt zur Laufzeit auf das transpilierte Verzeichnis, daher process.cwd() nutzen
+  const scriptPath = existsSync(join(__dirname, "createQuoteImage.py"))
+    ? join(__dirname, "createQuoteImage.py")
+    : join(process.cwd(), "server", "createQuoteImage.py");
   if (!existsSync(scriptPath)) {
-    throw new Error(`Quote-Image-Script nicht gefunden: ${scriptPath}`);
+    throw new Error(`Quote-Image-Script nicht gefunden: ${scriptPath} (cwd: ${process.cwd()})`);
   }
   // Sonderzeichen escapen
   const quoteSafe = quote.replace(/"/g, '\\"');
