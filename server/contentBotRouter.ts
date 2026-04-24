@@ -138,12 +138,31 @@ async function sendTelegramPhoto(imgPath: string, caption: string): Promise<stri
   }
 }
 
+/** Extrahiert Autor-Name aus KI-generiertem Quote-Text.
+ * Stoppt bei zwei Leerzeichen (Trenner zwischen Name und Kommentar) und filtert
+ * Wörter die nicht mit Großbuchstaben beginnen (kein Satzanfang nach dem Namen).
+ */
+function extractAuthorFromQuoteText(text: string): string {
+  const lines = text.split(/\n/);
+  for (const line of lines) {
+    const m = line.match(/^[\u2014\u2013\-]\s*(.+)/);
+    if (m) {
+      const raw = m[1].trim();
+      // Splitte bei 2+ Leerzeichen (Trenner zwischen Autor und nachfolgendem Kommentar)
+      const namePart = raw.split(/  +/)[0].trim();
+      // Behalte nur Wörter die mit Großbuchstaben beginnen (Namens-Wörter)
+      const nameWords = namePart.split(" ").filter((w, i) => i === 0 || /^[A-Z]/.test(w));
+      return nameWords.join(" ");
+    }
+  }
+  return "EasySignals";
+}
+
 /** Erstellt Quote-Bild und lädt es auf S3 hoch – kein Telegram-Versand */
 async function generateQuoteImageUrl(quoteText: string, userId: number, style: DalleStyleId = "trading"): Promise<{ imageUrl: string | null; dalleBackgroundUrl: string | null }> {
   const quoteMatch = quoteText.match(/["\u201e\u201c]([^"\u201c\u201d]+)["\u201d\u201c]/);
-  const authorMatch = quoteText.match(/[\u2014\-]\s*([A-Z][\w\s.]+)/);
   const quote = quoteMatch?.[1]?.trim() ?? quoteText.slice(0, 120);
-  const author = authorMatch?.[1]?.trim() ?? "EasySignals";
+  const author = extractAuthorFromQuoteText(quoteText);
   try {
     // DALL-E 3 Hintergrund generieren
     const dalleBackgroundUrl = await generateDallE3Background(quote, author, style);
@@ -163,9 +182,8 @@ async function sendQuoteAsImage(quoteText: string, userId: number, style: DalleS
   // Zitat und Autor aus dem Text extrahieren (KI-generiertes Format)
   // Format: "Zitat" \n\n— Autor
   const quoteMatch = quoteText.match(/["\u201e\u201c]([^"\u201c\u201d]+)["\u201d\u201c]/);
-  const authorMatch = quoteText.match(/[\u2014\-]\s*([A-Z][\w\s.]+)/);
   const quote = quoteMatch?.[1]?.trim() ?? quoteText.slice(0, 120);
-  const author = authorMatch?.[1]?.trim() ?? "EasySignals";
+  const author = extractAuthorFromQuoteText(quoteText);
 
   let imgPath: string | null = null;
   let imageUrl: string | null = null;
@@ -252,17 +270,15 @@ Sprache: Hochdeutsch.
 Format: Kurze Absätze, 2–4 Emojis, warmer Abschluss.`;
 
     case "quote":
-      return `Erstelle einen „Quote of the Day“-Post für die EasySignals Telegram-Gruppe.
-Wähle ein bekanntes, inspirierendes Zitat von einem berühmten Trader, Investor oder Unternehmer (z.B. Warren Buffett, Paul Tudor Jones, Jesse Livermore, George Soros, Ray Dalio, Marty Schwartz, Ed Seykota, Mark Douglas).
-Das Zitat soll auf Englisch bleiben (Original), aber der umrahmende Text ist auf Hochdeutsch.
+      return `Create a "Quote of the Day" post for the EasySignals Telegram channel.
+Choose a well-known, inspiring quote from a famous trader, investor or entrepreneur (e.g. Warren Buffett, Paul Tudor Jones, Jesse Livermore, George Soros, Ray Dalio, Marty Schwartz, Ed Seykota, Mark Douglas).
+The quote MUST be in English (original language).
 
-Format (EXAKT so, keine HTML-Tags, keine Emojis im Zitat-Block selbst):
-„[Zitat auf Englisch]“
-— [Name des Autors]
+Format (EXACTLY like this, no HTML tags, no emojis in the quote block):
+„[Quote in English]“
+— [Author Name]
 
-[2–3 Sätze Kommentar auf professionellem Hochdeutsch: Warum dieses Zitat für Trader relevant ist. KEIN Dialekt, KEINE Ausrufe.]
-
-🚀 EasySignals – Wir spielen das langfristige Spiel.`;
+Do NOT add any explanation, commentary, or additional text after the author name. Only output the quote and the author line, nothing else.`;
   }
 }
 
