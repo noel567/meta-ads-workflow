@@ -9,6 +9,7 @@ import { getDb } from "./db";
 import { contentPosts, contentBotSettings } from "../drizzle/schema";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
 import { storagePut } from "./storage";
+import { generateImage } from "./_core/imageGeneration";
 
 // --- Types ---
 type PostType = "mindset" | "recap" | "social_proof" | "scarcity" | "evening_recap" | "quote";
@@ -72,46 +73,20 @@ const DALLE_STYLE_PROMPTS: Record<DalleStyleId, (author: string) => string> = {
  * Gibt die URL des generierten Bildes zurück (temporäre OpenAI URL, 1h gültig).
  */
 async function generateDallE3Background(quote: string, author: string, style: DalleStyleId = "trading"): Promise<string | null> {
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (!openaiKey) {
-    console.warn("[ContentBot] OPENAI_API_KEY nicht gesetzt – DALL-E 3 übersprungen");
-    return null;
-  }
-
   const promptFn = DALLE_STYLE_PROMPTS[style] ?? DALLE_STYLE_PROMPTS.trading;
   const prompt = promptFn(author);
 
   try {
-    console.log("[ContentBot] DALL-E 3 Hintergrund wird generiert...");
-    const res = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: "dall-e-3",
-        prompt,
-        n: 1,
-        size: "1024x1024",
-        quality: "hd",
-        style: "vivid",
-      }),
-    });
-    const data = await res.json() as any;
-    if (!res.ok) {
-      console.error("[ContentBot] DALL-E 3 API Fehler:", data);
+    console.log(`[ContentBot] Hintergrund wird generiert (Stil: ${style})...`);
+    const result = await generateImage({ prompt });
+    if (!result.url) {
+      console.error("[ContentBot] Bildgenerierung: Keine URL in Antwort");
       return null;
     }
-    const url = data.data?.[0]?.url;
-    if (!url) {
-      console.error("[ContentBot] DALL-E 3: Keine URL in Antwort", data);
-      return null;
-    }
-    console.log("[ContentBot] DALL-E 3 Hintergrund generiert ✅");
-    return url;
+    console.log("[ContentBot] Hintergrund generiert ✅");
+    return result.url;
   } catch (e) {
-    console.error("[ContentBot] DALL-E 3 Fehler:", e);
+    console.error("[ContentBot] Bildgenerierung Fehler:", e);
     return null;
   }
 }
