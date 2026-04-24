@@ -5,7 +5,8 @@
  */
 import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas";
 import sharp from "sharp";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { existsSync, writeFileSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { createHash } from "crypto";
@@ -18,8 +19,10 @@ const GOLD_LIGHT: [number, number, number] = [255, 215, 80];
 const WHITE: [number, number, number] = [255, 255, 255];
 const BG_DARK: [number, number, number] = [5, 18, 12];
 
-const FONT_DIR = "/home/ubuntu/webdev-static-assets/fonts";
-const LOGO_PATH = "/home/ubuntu/webdev-static-assets/easysignals_logo_white.png";
+// Use paths relative to this file so they work in both dev and production
+const _serverDir = dirname(fileURLToPath(import.meta.url));
+const FONT_DIR = join(_serverDir, "fonts");
+const LOGO_PATH = join(_serverDir, "assets", "logo_white.png");
 
 function rgba(r: number, g: number, b: number, a = 1): string {
   return `rgba(${r},${g},${b},${a})`;
