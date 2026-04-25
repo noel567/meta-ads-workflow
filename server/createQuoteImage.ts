@@ -421,9 +421,15 @@ export async function createQuoteImage(
   ctx.stroke();
   ctx.restore();
 
-  const authorFont = fontSpec("Cinzel", 34);
-  ctx.font = authorFont;
   const authorStr = `\u2013 ${author.toUpperCase()}`;
+  // Dynamische Schriftgrösse: startet bei 34px, reduziert bis 18px damit der Name nicht überläuft
+  const MAX_AUTHOR_WIDTH = SIZE - 120; // 960px bei 1080px Canvas
+  let authorFontSize = 34;
+  ctx.font = fontSpec("Cinzel", authorFontSize);
+  while (ctx.measureText(authorStr).width > MAX_AUTHOR_WIDTH && authorFontSize > 18) {
+    authorFontSize -= 1;
+    ctx.font = fontSpec("Cinzel", authorFontSize);
+  }
   const aw = ctx.measureText(authorStr).width;
   const ax = (SIZE - aw) / 2;
   const ay = authorY + 18;
