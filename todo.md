@@ -546,3 +546,64 @@
 - [x] Frontend: Loading-State während Generierung (DALL-E 3 dauert ~15s)
 - [x] Frontend: Erfolgs-Toast mit Bild-Vorschau nach erfolgreichem Versand
 - [x] Frontend: Fehler-Toast bei Misserfolg
+
+## Creative Operation System – Phase 1 (April 2026)
+
+### Google Drive Fix
+- [x] Google Drive listFiles Procedure – dynamischer Ordner statt hardcodierter Folder-ID
+- [x] Drive-Videos werden jetzt korrekt aus dem verbundenen Ordner geladen
+
+### EasySignals Wissensbasis (Knowledge Files)
+- [x] DB-Schema: knowledge_files Tabelle (id, slug, title, content, updatedAt)
+- [x] Backend: knowledge CRUD tRPC-Procedures (list, get, update, expandWithAI, initDefaults)
+- [x] 5 Wissensdateien vorausfüllen (offer, target_audience, painpoints, ad_angles, scripts)
+- [x] Frontend: Knowledge-Editor Seite /knowledge (editierbare Markdown-Dateien)
+- [x] KI-Button: "Automatisch erweitern" (invokeLLM ergänzt Wissensdatei)
+
+### Creative Flow Builder Dashboard
+- [x] DB-Schema: knowledge_files als Wissensbasis integriert
+- [x] Frontend: Wissensbasis als zentrales Hub für alle Creatives
+
+### Image Ad Generator
+- [x] Livio-Foto auf S3 hochgeladen als Referenz-URL
+- [x] DB-Schema: image_ads Tabelle (id, userId, prompt, style, imageUrl, status, metaAdId, boardX, boardY)
+- [x] Backend: imageAds.generate Procedure (DALL-E 3, Livio-Gesicht, Fred-Stil, EasySignals-Kontext)
+- [x] Backend: imageAds.list, update, delete, uploadToMeta Procedures
+- [x] 4 Stile: Luxury, Trading Lifestyle, Results/Proof, Dark/Clean/Premium
+- [x] Frontend: Image Ad Generator Seite /image-ads mit Stil-Auswahl und Ad-Board
+
+### Visuelles Ad-Board (Miro-Style)
+- [x] Image Ads als Karten auf dem Board anzeigen
+- [x] DB-Schema: ad_headlines Tabelle (id, imageAdId, text, status, tested)
+- [x] Status-Tags: Entwurf, Getestet, Läuft, Pausiert, Gewinner
+- [x] Filter nach Status, Stil, Datum
+- [x] Headlines pro Ad verwalten (hinzufügen, testen, als Gewinner markieren)
+- [x] Direkt aus dem Board auf Meta hochladen (als Entwurf)
+
+### Meta Ads Upload (Entwurf)
+- [x] Backend: imageAds.uploadToMeta Procedure (Creative hochladen → Ad Set → Entwurf)
+- [x] Meta Ad Account ID: act_1093241318940799 – NIEMALS auto-publish
+- [x] Frontend: "Zu Meta hochladen" Button im Ad-Board
+- [x] Upload-Status anzeigen (pending/uploaded/error)
+
+## Creative Operation System – Phase 2 (April 2026)
+
+### Video Ad Generator (HeyGen)
+- [x] Backend: HeyGen Avatar-Liste abrufen (Livio-Klon finden)
+- [x] Backend: videoAds.generateScript Procedure (3 Hooks + Body + CTA via KI)
+- [x] Backend: videoAds.createHeyGenVideo Procedure (Skript → HeyGen API → 9:16 Video)
+- [x] Video-Status polling (HeyGen braucht 5-15 Min)
+- [x] DB-Schema: video_ads Tabelle
+- [x] Frontend: Video Ad Generator Seite /video-ads
+- [x] Frontend: Video-Vorschau nach Fertigstellung
+
+### Performance Tracking
+- [ ] Backend: syncAdPerformance Procedure (CTR, CPM, Hook Rate aus Meta API)
+- [ ] Gewinner-Ads automatisch erkennen (CTR > Schwellenwert)
+- [ ] Frontend: Performance-Dashboard mit Gewinner/Verlierer Übersicht
+
+### Daily Automation Loop
+- [ ] Scheduled Task: täglich neue Image Ads generieren
+- [ ] Scheduled Task: täglich neue Video-Skripte generieren
+- [ ] Scheduled Task: Performance-Sync von Meta API
+- [ ] Notification an Owner wenn neue Ads bereit sind

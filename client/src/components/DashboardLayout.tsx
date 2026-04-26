@@ -42,6 +42,9 @@ import {
   Bot,
   UserCog,
   ShieldCheck,
+  Brain,
+  Image,
+  Clapperboard,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -63,6 +66,9 @@ const menuItems = [
   { icon: CloudUpload, label: "Drive → Meta", path: "/drive-to-meta" },
   { icon: Key, label: "API-Keys", path: "/api-keys" },
   { icon: Bot, label: "Content Bot", path: "/content-bot" },
+  { icon: Brain, label: "Wissensbasis", path: "/knowledge" },
+  { icon: Image, label: "Image Ads", path: "/image-ads" },
+  { icon: Clapperboard, label: "Video Ads", path: "/video-ads" },
   { icon: BookOpen, label: "Transkripte", path: "/transcripts" },
   { icon: MonitorPlay, label: "Teleprompter", path: "/teleprompter" },
   { icon: FileText, label: "Dokumente", path: "/documents" },

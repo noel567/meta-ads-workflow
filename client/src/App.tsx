@@ -20,6 +20,9 @@ import BudgetRules from "./pages/BudgetRules";
 import DriveToMeta from "./pages/DriveToMeta";
 import ApiKeys from "./pages/ApiKeys";
 import ContentBot from "./pages/ContentBot";
+import Knowledge from "./pages/Knowledge";
+import ImageAds from "./pages/ImageAds";
+import VideoAds from "./pages/VideoAds";
 import Login from "./pages/Login";
 import AdminUsers from "./pages/AdminUsers";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -67,6 +70,9 @@ function ProtectedRouter() {
       <Route path="/drive-to-meta" component={DriveToMeta} />
       <Route path="/api-keys" component={ApiKeys} />
       <Route path="/content-bot" component={ContentBot} />
+      <Route path="/knowledge" component={Knowledge} />
+      <Route path="/image-ads" component={ImageAds} />
+      <Route path="/video-ads" component={VideoAds} />
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password/:token" component={ResetPassword} />

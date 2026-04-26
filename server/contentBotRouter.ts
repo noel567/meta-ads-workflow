@@ -178,7 +178,7 @@ async function generateQuoteImageUrl(quoteText: string, userId: number, style: D
 }
 
 /** Generiert Quote-Bild und sendet es; gibt messageId zurueck */
-async function sendQuoteAsImage(quoteText: string, userId: number, style: DalleStyleId = "trading"): Promise<{ messageId: string | null; imageUrl: string | null }> {
+export async function sendQuoteAsImage(quoteText: string, userId: number, style: DalleStyleId = "trading"): Promise<{ messageId: string | null; imageUrl: string | null }> {
   // Zitat und Autor aus dem Text extrahieren (KI-generiertes Format)
   // Format: "Zitat" \n\n— Autor
   const quoteMatch = quoteText.match(/["\u201e\u201c]([^"\u201c\u201d]+)["\u201d\u201c]/);
@@ -298,7 +298,7 @@ function getQuoteDeduplicationNote(recentTexts: string[]): string {
 }
 
 // --- Post generieren ---
-async function generatePostText(type: PostType, userId?: number): Promise<string> {
+export async function generatePostText(type: PostType, userId?: number): Promise<string> {
   let userPrompt = getUserPrompt(type);
 
   // Duplikat-Schutz fuer Quote of the Day: letzte 30 Tage laden

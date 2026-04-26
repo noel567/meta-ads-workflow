@@ -97,7 +97,7 @@ async function sendTelegramVideoReadyNotification(params: {
 }
 
 // ─── Drive: Videos im Ordner auflisten ───────────────────────────────────────
-async function listDriveVideos(accessToken: string): Promise<Array<{
+async function listDriveVideos(accessToken: string, rootFolderId?: string | null): Promise<Array<{
   id: string;
   name: string;
   mimeType: string;
@@ -106,7 +106,9 @@ async function listDriveVideos(accessToken: string): Promise<Array<{
   thumbnailLink?: string;
   webViewLink?: string;
 }>> {
-  const query = `"${DRIVE_FOLDER_ID}" in parents and trashed=false`;
+  // Verwende rootFolderId aus der Verbindung, oder den hardcodierten Fallback, oder suche überall
+  const parentId = rootFolderId ?? DRIVE_FOLDER_ID;
+  const query = `'${parentId}' in parents and mimeType contains 'video/' and trashed=false`;
   const fields = "files(id,name,mimeType,size,createdTime,thumbnailLink,webViewLink)";
   const url = `${DRIVE_API}/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent(fields)}&pageSize=100&orderBy=createdTime+desc`;
 
@@ -230,7 +232,7 @@ export const driveToMetaRouter = router({
     // Videos aus Drive holen
     let videos: Awaited<ReturnType<typeof listDriveVideos>>;
     try {
-      videos = await listDriveVideos(accessToken);
+      videos = await listDriveVideos(accessToken, conn.rootFolderId);
     } catch (e: any) {
       console.error("[DriveToMeta] Drive API Fehler:", e.message);
       // 403 = falscher Scope → Re-Auth nötig

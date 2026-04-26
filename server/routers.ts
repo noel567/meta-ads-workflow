@@ -27,6 +27,9 @@ import { adCommentsRouter } from "./adCommentsRouter";
 import { budgetRulesRouter } from "./budgetRulesRouter";
 import { driveToMetaRouter } from "./driveToMetaRouter";
 import { contentBotRouter } from "./contentBotRouter";
+import { knowledgeRouter } from "./knowledgeRouter";
+import { imageAdsRouter } from "./imageAdsRouter";
+import { videoAdsRouter } from "./videoAdsRouter";
 import { createApiKey, getApiKeysByUser, revokeApiKey, getAllUsers, createUserWithPassword, updateUserPassword, deleteUser } from "./db";
 import bcrypt from "bcryptjs";
 import { ENV } from "./_core/env";
@@ -638,13 +641,44 @@ const googleDriveRouter = router({
         throw new Error(`Google Drive Upload fehlgeschlagen: ${err.message}`);
       }
     }),
-  listFolders: protectedProcedure.query(async ({ ctx }) => {
+   listFolders: protectedProcedure.query(async ({ ctx }) => {
     const conn = await getGoogleDriveConnection(ctx.user.id);
     if (!conn) return [];
     return listGoogleDriveFolders(conn.accessToken, conn.rootFolderId || undefined);
   }),
+  listFiles: protectedProcedure
+    .input(z.object({ folderId: z.string().optional(), mimeTypeFilter: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const conn = await getGoogleDriveConnection(ctx.user.id);
+      if (!conn) return [];
+      const parentId = input.folderId ?? conn.rootFolderId ?? undefined;
+      const mimeFilter = input.mimeTypeFilter
+        ? ` and mimeType contains '${input.mimeTypeFilter}'`
+        : ` and mimeType != 'application/vnd.google-apps.folder'`;
+      const q = parentId
+        ? `'${parentId}' in parents${mimeFilter} and trashed=false`
+        : `${mimeFilter.replace(' and ', '')} and trashed=false`;
+      const url = new URL("https://www.googleapis.com/drive/v3/files");
+      url.searchParams.set("q", q);
+      url.searchParams.set("fields", "files(id,name,mimeType,size,thumbnailLink,webViewLink,webContentLink,createdTime,modifiedTime)");
+      url.searchParams.set("orderBy", "modifiedTime desc");
+      url.searchParams.set("pageSize", "50");
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${conn.accessToken}` } });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message || "Google Drive list error");
+      return (data.files ?? []) as Array<{ id: string; name: string; mimeType: string; size?: string; thumbnailLink?: string; webViewLink?: string; webContentLink?: string; createdTime: string; modifiedTime: string }>;
+    }),
+  getFileUrl: protectedProcedure
+    .input(z.object({ fileId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const conn = await getGoogleDriveConnection(ctx.user.id);
+      if (!conn) throw new Error("Nicht mit Google Drive verbunden");
+      return {
+        url: `https://drive.google.com/uc?export=download&id=${input.fileId}`,
+        webViewLink: `https://drive.google.com/file/d/${input.fileId}/view`,
+      };
+    }),
 });
-
 const automationRouter = router({
   runScan: protectedProcedure.mutation(async ({ ctx }) => {
     const result = await runDailyScan(ctx.user.id);
@@ -1474,6 +1508,9 @@ export const appRouter = router({
   budgetRules: budgetRulesRouter,
   driveToMeta: driveToMetaRouter,
   contentBot: contentBotRouter,
+  knowledge: knowledgeRouter,
+  imageAds: imageAdsRouter,
+  videoAds: videoAdsRouter,
   apiKeys: router({
     create: protectedProcedure
       .input(z.object({ name: z.string().min(1).max(128) }))

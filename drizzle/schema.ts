@@ -586,3 +586,83 @@ export const passwordResetTokens = mysqlTable("password_reset_tokens", {
 });
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
+// ─── Knowledge Files (EasySignals Wissensbasis) ───────────────────────────────
+export const knowledgeFiles = mysqlTable("knowledge_files", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  slug: varchar("slug", { length: 64 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  lastExpandedAt: timestamp("lastExpandedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type KnowledgeFile = typeof knowledgeFiles.$inferSelect;
+export type InsertKnowledgeFile = typeof knowledgeFiles.$inferInsert;
+
+// ─── Image Ads (AI-generierte Werbeanzeigen) ──────────────────────────────────
+export const imageAds = mysqlTable("image_ads", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  style: mysqlEnum("style", ["luxury", "trading_lifestyle", "results_proof", "dark_premium"]).default("luxury").notNull(),
+  prompt: text("prompt"),
+  imageUrl: text("imageUrl"),
+  driveFileId: varchar("driveFileId", { length: 255 }),
+  driveUrl: text("driveUrl"),
+  metaAdId: varchar("metaAdId", { length: 64 }),
+  metaUploadStatus: mysqlEnum("metaUploadStatus", ["none", "pending", "uploaded", "error"]).default("none").notNull(),
+  // Board position
+  boardX: int("boardX").default(0).notNull(),
+  boardY: int("boardY").default(0).notNull(),
+  boardStatus: mysqlEnum("boardStatus", ["draft", "testing", "active", "paused", "winner"]).default("draft").notNull(),
+  // Performance (from Meta)
+  ctr: float("ctr"),
+  cpc: float("cpc"),
+  spend: float("spend"),
+  impressions: bigint("impressions", { mode: "number" }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ImageAd = typeof imageAds.$inferSelect;
+export type InsertImageAd = typeof imageAds.$inferInsert;
+
+// ─── Ad Headlines (Verbindungen zum Ad-Board) ─────────────────────────────────
+export const adHeadlines = mysqlTable("ad_headlines", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  imageAdId: int("imageAdId").notNull(),
+  text: varchar("text", { length: 512 }).notNull(),
+  status: mysqlEnum("status", ["draft", "testing", "active", "paused", "winner"]).default("draft").notNull(),
+  tested: boolean("tested").default(false).notNull(),
+  ctr: float("ctr"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AdHeadline = typeof adHeadlines.$inferSelect;
+export type InsertAdHeadline = typeof adHeadlines.$inferInsert;
+
+// ─── Video Ads (HeyGen-generierte Videos) ─────────────────────────────────────
+export const videoAds = mysqlTable("video_ads", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  hook: text("hook").notNull(),
+  body: text("body").notNull(),
+  cta: text("cta").notNull(),
+  fullScript: text("fullScript"),
+  avatarId: varchar("avatarId", { length: 128 }),
+  voiceId: varchar("voiceId", { length: 128 }),
+  heygenVideoId: varchar("heygenVideoId", { length: 128 }),
+  videoUrl: text("videoUrl"),
+  thumbnailUrl: text("thumbnailUrl"),
+  driveFileId: varchar("driveFileId", { length: 255 }),
+  driveUrl: text("driveUrl"),
+  status: mysqlEnum("status", ["draft", "generating", "ready", "error"]).default("draft").notNull(),
+  errorMessage: text("errorMessage"),
+  aspectRatio: varchar("aspectRatio", { length: 8 }).default("9:16").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type VideoAd = typeof videoAds.$inferSelect;
+export type InsertVideoAd = typeof videoAds.$inferInsert;
