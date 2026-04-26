@@ -21,7 +21,7 @@ import {
   getTelegramPosts, getTelegramPostById, createTelegramPost, updateTelegramPost, deleteTelegramPost,
   getTelegramSettings, upsertTelegramSettings,
 } from "./db";
-import { runDailyScan, startScheduler, runDailyTelegramPost } from "./scheduler";
+import { runDailyScan, startScheduler, runDailyTelegramPost, runDailyImageAdGeneration, runDailyVideoAdScriptGeneration, runDailyPerformanceSync } from "./scheduler";
 import { metaInsightsRouter } from "./metaInsightsRouter";
 import { adCommentsRouter } from "./adCommentsRouter";
 import { budgetRulesRouter } from "./budgetRulesRouter";
@@ -689,6 +689,18 @@ const automationRouter = router({
     return { success: true, message: "Täglicher Scan-Scheduler gestartet (07:00 UTC)." };
   }),
   getScanLogs: protectedProcedure.query(async ({ ctx }) => getScanLogs(ctx.user.id, 20)),
+  runDailyImageAds: protectedProcedure.mutation(async ({ ctx }) => {
+    const result = await runDailyImageAdGeneration(ctx.user.id);
+    return result ?? { message: "Image Ad Generierung gestartet" };
+  }),
+  runDailyVideoScript: protectedProcedure.mutation(async ({ ctx }) => {
+    const result = await runDailyVideoAdScriptGeneration(ctx.user.id);
+    return result ?? { message: "Video-Skript Generierung gestartet" };
+  }),
+  runDailyPerfSync: protectedProcedure.mutation(async ({ ctx }) => {
+    const result = await runDailyPerformanceSync(ctx.user.id);
+    return result ?? { synced: 0, winners: 0 };
+  }),
 });
 
 const dashboardRouter = router({

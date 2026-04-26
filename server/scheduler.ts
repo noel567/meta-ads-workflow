@@ -3,12 +3,16 @@
  * Läuft täglich um 07:00 Uhr und scannt alle aktiven Konkurrenten.
  */
 
-import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor, getGoogleDriveConnection, updateAdBatch, createDocument, getTelegramSettings, createTelegramPost, updateTelegramPost } from "./db";
+import { getActiveCompetitors, getMetaConnection, saveCompetitorAd, updateCompetitor, createScanLog, updateScanLog, getBrandSettings, createAdBatch, markCompetitorAdProcessed, getCompetitorAdsByCompetitor, getGoogleDriveConnection, updateAdBatch, createDocument, getTelegramSettings, createTelegramPost, updateTelegramPost, getDb } from "./db";
 import { saveInsights, saveAiAnalysis, getLatestAiAnalysis } from "./metaInsightsDb";
 import { runAllBudgetRules } from "./budgetRulesRouter";
 import { runContentBotScheduler } from "./contentBotRouter";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
+import { imageAds, videoAds, adHeadlines, knowledgeFiles } from "../drizzle/schema";
+import { eq, desc } from "drizzle-orm";
+import { generateImage } from "./_core/imageGeneration";
+import { storagePut } from "./storage";
 
 
 // ─── Daily Telegram Post ─────────────────────────────────────────────────────
@@ -651,6 +655,39 @@ export function startScheduler(userId: number) {
     } catch (e) {
       console.error(`[Scheduler] Content Bot Scheduler failed:`, e);
     }
+
+    // Daily Image Ad Generation at 06:00 UTC (08:00 CEST)
+    if (hour === 6 && minute < 5) {
+      console.log(`[Scheduler] Running daily image ad generation for user ${userId}...`);
+      try {
+        await runDailyImageAdGeneration(userId);
+        console.log(`[Scheduler] Daily image ad generation completed.`);
+      } catch (e) {
+        console.error(`[Scheduler] Daily image ad generation failed:`, e);
+      }
+    }
+
+    // Daily Video Ad Script Generation at 06:15 UTC (08:15 CEST)
+    if (hour === 6 && minute >= 15 && minute < 20) {
+      console.log(`[Scheduler] Running daily video ad script generation for user ${userId}...`);
+      try {
+        await runDailyVideoAdScriptGeneration(userId);
+        console.log(`[Scheduler] Daily video ad script generation completed.`);
+      } catch (e) {
+        console.error(`[Scheduler] Daily video ad script generation failed:`, e);
+      }
+    }
+
+    // Daily Performance Sync at 09:00 UTC (11:00 CEST)
+    if (hour === 9 && minute < 5) {
+      console.log(`[Scheduler] Running daily performance sync for user ${userId}...`);
+      try {
+        await runDailyPerformanceSync(userId);
+        console.log(`[Scheduler] Daily performance sync completed.`);
+      } catch (e) {
+        console.error(`[Scheduler] Daily performance sync failed:`, e);
+      }
+    }
   }, 5 * 60 * 1000); // Check every 5 minutes
 
   console.log(`[Scheduler] Daily scan scheduler started for user ${userId}`);
@@ -891,4 +928,267 @@ JSON Format:
   });
 
   console.log(`[MetaAnalysis] Analysis saved for ${rows.length} campaigns, score: ${parsed.overallScore}`);
+}
+
+// ─── Daily Image Ad Generation ────────────────────────────────────────────────
+
+const LIVIO_PHOTO_URL_SCHED = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663565941002/UojQwiICNYeKudJO.webp";
+
+const AD_STYLE_PROMPTS_SCHED: Record<string, string> = {
+  luxury: `Luxury lifestyle photography. A young successful man (Livio Swiss, 25 years old, curly dark hair, beard, wearing black EasySignals polo shirt) in a high-end penthouse or luxury setting. Professional studio lighting, cinematic quality, aspirational wealth aesthetic. Gold and dark color palette.`,
+  trading_lifestyle: `Professional trading setup photography. A young trader (Livio Swiss, 25 years old, curly dark hair, beard, wearing black EasySignals polo shirt) at multiple monitors showing green charts. Modern office or home setup, confident pose, success atmosphere. Dark background with green accent lights.`,
+  results_proof: `Social proof marketing image. Clean minimal design with a smartphone showing trading profits, green numbers, success metrics. EasySignals branding. Dark premium background with gold accents. Professional product photography style.`,
+  dark_premium: `Dark premium minimalist advertisement. Dramatic lighting, deep blacks and gold tones. A young confident man (Livio Swiss, 25 years old, curly dark hair, beard) in business casual attire. Luxury watch visible, confident posture. High contrast, editorial photography style.`,
+};
+
+const AD_STYLES_SCHED = ["luxury", "trading_lifestyle", "results_proof", "dark_premium"] as const;
+
+/**
+ * Täglich 1-2 neue Image Ads generieren (DALL-E 3, Livio-Foto, EasySignals-Kontext)
+ * Läuft um 06:00 UTC (08:00 CEST)
+ */
+export async function runDailyImageAdGeneration(userId: number) {
+  console.log(`[DailyImageAds] Starting daily image ad generation for user ${userId}...`);
+  const db = await getDb();
+  if (!db) { console.log("[DailyImageAds] DB not available, skipping."); return; }
+
+  // Get knowledge context
+  const kfFiles = await db.select().from(knowledgeFiles).where(eq(knowledgeFiles.userId, userId));
+  const knowledgeContext = kfFiles.map((f) => `${f.title}:\n${f.content.slice(0, 500)}`).join("\n\n");
+
+  // Pick a random style for today
+  const style = AD_STYLES_SCHED[Math.floor(Math.random() * AD_STYLES_SCHED.length)];
+  const basePrompt = AD_STYLE_PROMPTS_SCHED[style];
+
+  // Generate a unique title via LLM
+  const titleResp = await invokeLLM({
+    messages: [
+      { role: "system", content: "Du bist ein Meta Ads Texter für EasySignals (Schweizer Trading-Community). Erstelle einen kurzen, prägnanten Anzeigen-Titel (max. 8 Wörter). Nur der Titel, kein Kommentar." },
+      { role: "user", content: `Stil: ${style}. Kontext: ${knowledgeContext.slice(0, 800)}` },
+    ],
+  });
+  const title = ((titleResp as any).choices?.[0]?.message?.content ?? `EasySignals Ad – ${style}`).trim().slice(0, 255);
+
+  try {
+    // Generate image
+    const { url: imageUrl } = await generateImage({
+      prompt: basePrompt,
+      originalImages: [{ url: LIVIO_PHOTO_URL_SCHED, mimeType: "image/webp" }],
+    });
+    if (!imageUrl) throw new Error("Bild-URL leer");
+
+    // Upload to S3
+    const imgResp = await fetch(imageUrl);
+    const imgBuffer = Buffer.from(await imgResp.arrayBuffer());
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const { url: s3Url } = await storagePut(`image-ads/${userId}-${suffix}.jpg`, imgBuffer, "image/jpeg");
+
+    // Save to DB
+    const [inserted] = await db.insert(imageAds).values({
+      userId,
+      title,
+      style,
+      prompt: basePrompt,
+      imageUrl: s3Url,
+      boardStatus: "draft",
+      metaUploadStatus: "none",
+      boardX: Math.floor(Math.random() * 600),
+      boardY: Math.floor(Math.random() * 400),
+    }).$returningId();
+
+    // Generate 3 headlines via LLM
+    const headlineResp = await invokeLLM({
+      messages: [
+        { role: "system", content: "Du bist ein Meta Ads Texter für EasySignals. Erstelle 3 kurze, wirkungsvolle Anzeigen-Headlines (max. 40 Zeichen je). Format: eine pro Zeile, kein Nummerierung." },
+        { role: "user", content: `Anzeige: ${title}. Stil: ${style}. Kontext: ${knowledgeContext.slice(0, 600)}` },
+      ],
+    });
+    const headlinesRaw = ((headlineResp as any).choices?.[0]?.message?.content ?? "").trim();
+    const headlines = headlinesRaw.split("\n").map((h: string) => h.trim()).filter((h: string) => h.length > 0).slice(0, 3);
+
+    for (const text of headlines) {
+      await db.insert(adHeadlines).values({
+        userId,
+        imageAdId: inserted.id,
+        text: text.slice(0, 512),
+        status: "draft",
+        tested: false,
+      });
+    }
+
+    await notifyOwner({
+      title: "🎨 Neue Image Ad generiert",
+      content: `Tägliche Image Ad erstellt: "${title}" (Stil: ${style})\n${headlines.length} Headlines generiert.\nAd-Board: https://metaadsflow-4xe4vzjf.manus.space/image-ads`,
+    });
+
+    console.log(`[DailyImageAds] Image Ad "${title}" (${style}) created with ${headlines.length} headlines.`);
+    return { id: inserted.id, title, style };
+  } catch (e: any) {
+    console.error(`[DailyImageAds] Failed to generate image ad:`, e.message);
+    await notifyOwner({
+      title: "⚠️ Image Ad Generierung fehlgeschlagen",
+      content: `Fehler beim Erstellen der täglichen Image Ad: ${e.message}`,
+    });
+  }
+}
+
+// ─── Daily Video Ad Script Generation ────────────────────────────────────────
+
+/**
+ * Täglich 3 Hooks + Body + CTA als Video-Ad-Skript generieren
+ * Läuft um 06:15 UTC (08:15 CEST)
+ */
+export async function runDailyVideoAdScriptGeneration(userId: number) {
+  console.log(`[DailyVideoAds] Starting daily video ad script generation for user ${userId}...`);
+  const db = await getDb();
+  if (!db) { console.log("[DailyVideoAds] DB not available, skipping."); return; }
+
+  // Get knowledge context
+  const kfFiles = await db.select().from(knowledgeFiles).where(eq(knowledgeFiles.userId, userId));
+  const knowledgeContext = kfFiles.map((f) => `${f.title}:\n${f.content.slice(0, 600)}`).join("\n\n");
+
+  const emotions = ["fomo", "pain", "curiosity", "authority", "social_proof"] as const;
+  const emotion = emotions[Math.floor(Math.random() * emotions.length)];
+  const emotionMap: Record<string, string> = {
+    fomo: "Angst etwas zu verpassen (FOMO)",
+    pain: "Schmerz und Frustration",
+    curiosity: "Neugier und Überraschung",
+    authority: "Autorität und Expertise",
+    social_proof: "Social Proof und Vertrauen",
+  };
+
+  try {
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `Du bist ein erfahrener Meta Ads Video-Skript-Autor für EasySignals.
+Erstelle ein Video-Ad-Skript für den deutschen Markt.
+Das Skript wird von Livio Swiss (25 Jahre, Gründer EasySignals) gesprochen.
+Tonalität: ${emotionMap[emotion]}
+
+Kontext über EasySignals:
+${knowledgeContext.slice(0, 2000)}
+
+Format (STRIKT einhalten):
+HOOK_1: [Hook-Text, max 15 Wörter, direkt und provokativ]
+HOOK_2: [Hook-Text, max 15 Wörter, Neugier weckend]
+HOOK_3: [Hook-Text, max 15 Wörter, Schmerz-basiert]
+BODY: [Hauptteil, 50-80 Wörter, Problem → Lösung → Beweis]
+CTA: [Call-to-Action, max 20 Wörter, klar und dringend]`,
+        },
+        { role: "user", content: "Erstelle ein Skript basierend auf dem EasySignals-Kontext." },
+      ],
+    });
+
+    const raw = (response as any).choices?.[0]?.message?.content ?? "";
+    const extract = (key: string) => {
+      const match = raw.match(new RegExp(`${key}:\\s*(.+?)(?=\\n[A-Z_]+:|$)`, "s"));
+      return match?.[1]?.trim() ?? "";
+    };
+
+    const hook1 = extract("HOOK_1");
+    const hook2 = extract("HOOK_2");
+    const hook3 = extract("HOOK_3");
+    const body = extract("BODY");
+    const cta = extract("CTA");
+
+    if (!hook1 || !body || !cta) {
+      throw new Error("Skript-Parsing fehlgeschlagen – unvollständige Ausgabe");
+    }
+
+    const today = new Date().toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const title = `Daily Script ${today} – ${emotionMap[emotion].split(" ")[0]}`;
+    const fullScript = `${hook1}\n\n${body}\n\n${cta}`;
+
+    const [inserted] = await db.insert(videoAds).values({
+      userId,
+      title: title.slice(0, 255),
+      hook: hook1,
+      body,
+      cta,
+      fullScript,
+      status: "draft",
+      aspectRatio: "9:16",
+    }).$returningId();
+
+    await notifyOwner({
+      title: "🎬 Neues Video-Ad-Skript generiert",
+      content: `Tägliches Video-Skript erstellt: "${title}"\n\nHook 1: ${hook1}\nHook 2: ${hook2}\nHook 3: ${hook3}\n\nVideo Ads: https://metaadsflow-4xe4vzjf.manus.space/video-ads`,
+    });
+
+    console.log(`[DailyVideoAds] Video script "${title}" created (id: ${inserted.id}).`);
+    return { id: inserted.id, title, hook1, hook2, hook3, body, cta };
+  } catch (e: any) {
+    console.error(`[DailyVideoAds] Failed to generate video script:`, e.message);
+    await notifyOwner({
+      title: "⚠️ Video-Skript Generierung fehlgeschlagen",
+      content: `Fehler beim Erstellen des täglichen Video-Skripts: ${e.message}`,
+    });
+  }
+}
+
+// ─── Daily Performance Sync ───────────────────────────────────────────────────
+
+/**
+ * Täglich Performance-Daten von Meta API synchronisieren
+ * Läuft um 09:00 UTC (11:00 CEST)
+ */
+export async function runDailyPerformanceSync(userId: number) {
+  console.log(`[DailyPerformanceSync] Starting daily performance sync for user ${userId}...`);
+  const db = await getDb();
+  if (!db) { console.log("[DailyPerformanceSync] DB not available, skipping."); return; }
+
+  const metaToken = process.env.META_ACCESS_TOKEN ?? "";
+  const adAccountId = "act_1093241318940799";
+  if (!metaToken) { console.log("[DailyPerformanceSync] META_ACCESS_TOKEN nicht gesetzt, überspringe."); return; }
+
+  // Alle hochgeladenen Image Ads laden
+  const ads = await db
+    .select()
+    .from(imageAds)
+    .where(eq(imageAds.userId, userId));
+
+  const uploadedAds = ads.filter(a => a.metaUploadStatus === "uploaded" && a.metaAdId);
+  if (uploadedAds.length === 0) {
+    console.log("[DailyPerformanceSync] Keine hochgeladenen Ads gefunden.");
+    return;
+  }
+
+  let synced = 0;
+  let winners = 0;
+
+  for (const ad of uploadedAds) {
+    try {
+      const insightsUrl = `https://graph.facebook.com/v19.0/${adAccountId}/insights?fields=impressions,clicks,spend,ctr,cpc&date_preset=last_30d&access_token=${metaToken}`;
+      const resp = await fetch(insightsUrl);
+      const data = await resp.json() as any;
+      if (data.data && data.data.length > 0) {
+        const insight = data.data[0];
+        const newCtr = parseFloat(insight.ctr ?? "0");
+        const isWinner = newCtr > 3;
+        await db.update(imageAds).set({
+          impressions: parseInt(insight.impressions ?? "0"),
+          spend: parseFloat(insight.spend ?? "0"),
+          ctr: newCtr,
+          cpc: parseFloat(insight.cpc ?? "0"),
+          boardStatus: isWinner ? "winner" : ad.boardStatus,
+        }).where(eq(imageAds.id, ad.id));
+        synced++;
+        if (isWinner) winners++;
+      }
+    } catch (e) {
+      console.error(`[DailyPerformanceSync] Fehler für Ad ${ad.id}:`, e);
+    }
+  }
+
+  if (synced > 0) {
+    await notifyOwner({
+      title: "📊 Performance Sync abgeschlossen",
+      content: `${synced} Ads synchronisiert${winners > 0 ? `, ${winners} neue Gewinner (CTR > 3%) erkannt` : ""}.\nAd Performance: https://metaadsflow-4xe4vzjf.manus.space/ad-performance`,
+    });
+  }
+
+  console.log(`[DailyPerformanceSync] ${synced} Ads synced, ${winners} winners detected.`);
+  return { synced, winners };
 }

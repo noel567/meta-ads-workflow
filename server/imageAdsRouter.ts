@@ -228,6 +228,75 @@ ${knowledgeContext.slice(0, 1000)}`,
       return { success: true };
     }),
 
+  syncPerformance: protectedProcedure
+    .input(z.object({ adAccountId: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const metaToken = process.env.META_ACCESS_TOKEN ?? "";
+      const adAccountId = input.adAccountId ?? "act_1093241318940799";
+      if (!metaToken) throw new Error("META_ACCESS_TOKEN nicht gesetzt");
+      // Alle Image Ads mit metaAdId laden
+      const ads = await db
+        .select()
+        .from(imageAds)
+        .where(and(eq(imageAds.userId, ctx.user.id), eq(imageAds.metaUploadStatus, "uploaded")));
+      if (ads.length === 0) return { synced: 0, message: "Keine hochgeladenen Ads gefunden" };
+      let synced = 0;
+      for (const ad of ads) {
+        if (!ad.metaAdId) continue;
+        try {
+          const insightsUrl = `https://graph.facebook.com/v19.0/${adAccountId}/insights?fields=impressions,clicks,spend,ctr,cpc&date_preset=last_30d&access_token=${metaToken}`;
+          const resp = await fetch(insightsUrl);
+          const data = await resp.json() as any;
+          if (data.data && data.data.length > 0) {
+            const insight = data.data[0];
+            const newCtr = parseFloat(insight.ctr ?? "0");
+            await db.update(imageAds).set({
+              impressions: parseInt(insight.impressions ?? "0"),
+              spend: parseFloat(insight.spend ?? "0"),
+              ctr: newCtr,
+              cpc: parseFloat(insight.cpc ?? "0"),
+              // Auto-winner wenn CTR > 3%
+              boardStatus: newCtr > 3 ? "winner" : ad.boardStatus,
+            }).where(eq(imageAds.id, ad.id));
+            synced++;
+          }
+        } catch (e) {
+          console.error(`[ImageAds] Performance-Sync Fehler für Ad ${ad.id}:`, e);
+        }
+      }
+      return { synced, message: `${synced} Ads synchronisiert` };
+    }),
+
+  getPerformanceOverview: protectedProcedure
+    .query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB not available");
+      const ads = await db
+        .select()
+        .from(imageAds)
+        .where(eq(imageAds.userId, ctx.user.id));
+      const winners = ads.filter(a => a.boardStatus === "winner");
+      const active = ads.filter(a => a.boardStatus === "active");
+      const totalSpend = ads.reduce((s, a) => s + (a.spend ?? 0), 0);
+      const adsWithCtr = ads.filter(a => a.ctr && a.ctr > 0);
+      const avgCtr = adsWithCtr.length > 0
+        ? adsWithCtr.reduce((s, a) => s + (a.ctr ?? 0), 0) / adsWithCtr.length
+        : 0;
+      return {
+        total: ads.length,
+        winners: winners.length,
+        active: active.length,
+        totalSpend: Math.round(totalSpend * 100) / 100,
+        avgCtr: Math.round(avgCtr * 100) / 100,
+        topAds: ads
+          .filter(a => a.ctr && a.ctr > 0)
+          .sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))
+          .slice(0, 5),
+      };
+    }),
+
   uploadToMeta: protectedProcedure
     .input(z.object({ id: z.number(), adAccountId: z.string() }))
     .mutation(async ({ ctx, input }) => {

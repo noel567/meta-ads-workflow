@@ -598,12 +598,19 @@
 - [x] Frontend: Video-Vorschau nach Fertigstellung
 
 ### Performance Tracking
-- [ ] Backend: syncAdPerformance Procedure (CTR, CPM, Hook Rate aus Meta API)
-- [ ] Gewinner-Ads automatisch erkennen (CTR > Schwellenwert)
-- [ ] Frontend: Performance-Dashboard mit Gewinner/Verlierer Übersicht
+- [x] Backend: syncAdPerformance Procedure (CTR, CPM, Hook Rate aus Meta API)
+- [x] Gewinner-Ads automatisch erkennen (CTR > Schwellenwert)
+- [x] Frontend: Performance-Dashboard mit Gewinner/Verlierer Übersicht (/ad-performance)
+- [x] KPI-Karten: Gesamt Ads, Gewinner, Ø CTR, Gesamt Spend
+- [x] Top Performer Tabelle (nach CTR sortiert)
+- [x] Status-Übersicht: Gewinner / Aktiv / Im Test
+- [x] Alle Ads Performance-Tabelle (CTR, CPC, Spend, Impressionen)
 
 ### Daily Automation Loop
-- [ ] Scheduled Task: täglich neue Image Ads generieren
-- [ ] Scheduled Task: täglich neue Video-Skripte generieren
-- [ ] Scheduled Task: Performance-Sync von Meta API
-- [ ] Notification an Owner wenn neue Ads bereit sind
+- [x] Scheduled Task: täglich neue Image Ads generieren (06:00 UTC / 08:00 CEST)
+- [x] Scheduled Task: täglich neue Video-Skripte generieren (06:15 UTC / 08:15 CEST)
+- [x] Scheduled Task: Performance-Sync von Meta API (09:00 UTC / 11:00 CEST)
+- [x] Notification an Owner wenn neue Ads bereit sind (notifyOwner())
+- [x] Frontend: "Jetzt ausführen"-Buttons im Ad Performance Dashboard
+- [x] tRPC Procedures: automation.runDailyImageAds, runDailyVideoScript, runDailyPerfSync
+- [x] Sidebar: Ad Performance Eintrag mit BarChart2 Icon
