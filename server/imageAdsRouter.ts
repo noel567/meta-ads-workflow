@@ -6,6 +6,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
+import { renderCompositeAd, type AdTemplate } from "./compositeAdRenderer";
 
 // Livio reference photo URL for image generation
 const LIVIO_PHOTO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663565941002/UojQwiICNYeKudJO.webp";
@@ -45,6 +46,11 @@ export const imageAdsRouter = router({
       z.object({
         title: z.string().min(1).max(255),
         style: z.enum(["luxury", "trading_lifestyle", "results_proof", "dark_premium"]),
+        template: z.enum(["fredtrading", "news", "split", "luxury"]).default("fredtrading"),
+        headline: z.string().min(1).max(80),
+        subheadline: z.string().max(200).optional(),
+        bullets: z.array(z.string().max(60)).max(3).optional(),
+        cta: z.string().max(50).optional(),
         customPrompt: z.string().optional(),
         generateHeadlines: z.boolean().default(true),
       })
@@ -59,33 +65,69 @@ export const imageAdsRouter = router({
         .from(knowledgeFiles)
         .where(eq(knowledgeFiles.userId, ctx.user.id));
       const knowledgeContext = kfFiles
-        .map((f) => `${f.title}:\n${f.content.slice(0, 500)}`)
+        .map((f) => `${f.title}:\n${f.content.slice(0, 300)}`)
         .join("\n\n");
 
-      // Build image prompt
-      const basePrompt = AD_STYLE_PROMPTS[input.style] ?? AD_STYLE_PROMPTS.luxury;
-      const fullPrompt = input.customPrompt
-        ? `${basePrompt}\n\nAdditional context: ${input.customPrompt}`
-        : basePrompt;
+      // Wenn keine Bullets angegeben, KI generiert Vorschläge
+      let bullets = input.bullets ?? [];
+      let subheadline = input.subheadline ?? "";
+      if (bullets.length === 0 || !subheadline) {
+        const copyResponse = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `Du bist ein Meta Ads Copywriter für EasySignals (Trading-Signal-Service).
+Erstelle für eine ${input.style} Ad:
+1. Eine Subheadline (max 80 Zeichen, erklärt den Nutzen)
+2. Drei kurze Bullet Points (max 40 Zeichen je, Vorteile/Features)
 
-      // Generate image
-      const { url: imageUrl } = await generateImage({
-        prompt: fullPrompt,
-        originalImages: [{ url: LIVIO_PHOTO_URL, mimeType: "image/webp" }],
+Antworte NUR in diesem Format:
+SUBHEADLINE: [text]
+BULLET1: [text]
+BULLET2: [text]
+BULLET3: [text]
+
+Kontext: ${knowledgeContext.slice(0, 600)}`,
+            },
+            {
+              role: "user",
+              content: `Headline: "${input.headline}"\nStil: ${input.style}\nTitel: ${input.title}`,
+            },
+          ],
+        });
+        const raw = (copyResponse as any).choices?.[0]?.message?.content ?? "";
+        const lines = raw.split("\n").map((l: string) => l.trim());
+        for (const line of lines) {
+          if (line.startsWith("SUBHEADLINE:") && !subheadline) {
+            subheadline = line.replace("SUBHEADLINE:", "").trim();
+          } else if (line.startsWith("BULLET") && bullets.length < 3) {
+            const b = line.replace(/^BULLET\d+:/, "").trim();
+            if (b) bullets.push(b);
+          }
+        }
+      }
+
+      // Composite Ad rendern (Livio-Foto + Text-Overlay)
+      const compositeBuffer = await renderCompositeAd({
+        photoUrl: LIVIO_PHOTO_URL,
+        headline: input.headline,
+        subheadline: subheadline || undefined,
+        bullets: bullets.length > 0 ? bullets : undefined,
+        cta: input.cta,
+        template: input.template as AdTemplate,
+        accentColor: input.style === "luxury" ? "#c9a227" : "#22c55e",
       });
 
-      // Upload to S3
-      if (!imageUrl) throw new Error("Bild-Generierung fehlgeschlagen");
-      const imgResp = await fetch(imageUrl);
-      const imgBuffer = Buffer.from(await imgResp.arrayBuffer());
+      // Upload Composite Ad zu S3
       const suffix = Date.now();
       const { url: s3Url } = await storagePut(
         `image-ads/${ctx.user.id}-${suffix}.jpg`,
-        imgBuffer,
+        compositeBuffer,
         "image/jpeg"
       );
 
       // Insert into DB
+      const fullPrompt = `${input.style} | ${input.template} | ${input.headline}`;
       const [inserted] = await db
         .insert(imageAds)
         .values({
@@ -98,38 +140,44 @@ export const imageAdsRouter = router({
         .$returningId();
       const adId = inserted.id;
 
-      // Generate headlines if requested
-      let headlines: string[] = [];
+      // Headline + Subheadline + Bullets als adHeadlines speichern
+      const headlineTexts = [
+        input.headline,
+        ...(subheadline ? [subheadline] : []),
+        ...bullets,
+      ];
+      for (const text of headlineTexts) {
+        await db.insert(adHeadlines).values({
+          userId: ctx.user.id,
+          imageAdId: adId,
+          text,
+        });
+      }
+
+      // Zusätzliche KI-Headlines generieren falls gewünscht
+      let extraHeadlines: string[] = [];
       if (input.generateHeadlines) {
         const hlResponse = await invokeLLM({
           messages: [
             {
               role: "system",
-              content: `Du bist ein Meta Ads Copywriter für EasySignals, einen Trading-Signal-Service.
-Erstelle 5 verschiedene Headlines für eine Facebook/Instagram Ad.
-Jede Headline max. 40 Zeichen. Direkt, emotional, auf Deutsch.
-Antworte NUR mit den 5 Headlines, eine pro Zeile, keine Nummerierung.
-
-Kontext:
-${knowledgeContext.slice(0, 1000)}`,
+              content: `Du bist ein Meta Ads Copywriter für EasySignals.
+Erstelle 4 alternative Headlines für diese Ad (max. 50 Zeichen je, auf Deutsch).
+Antworte NUR mit den 4 Headlines, eine pro Zeile, keine Nummerierung.`,
             },
             {
               role: "user",
-              content: `Ad-Stil: ${input.style}\nAd-Titel: ${input.title}\n\nErstelle 5 Headlines:`,
+              content: `Aktuelle Headline: "${input.headline}"\nStil: ${input.style}`,
             },
           ],
         });
-
-        const rawHeadlines =
-          (hlResponse as any).choices?.[0]?.message?.content ?? "";
-        headlines = rawHeadlines
+        const rawHL = (hlResponse as any).choices?.[0]?.message?.content ?? "";
+        extraHeadlines = rawHL
           .split("\n")
           .map((h: string) => h.trim())
           .filter((h: string) => h.length > 0)
-          .slice(0, 5);
-
-        // Insert headlines
-        for (const text of headlines) {
+          .slice(0, 4);
+        for (const text of extraHeadlines) {
           await db.insert(adHeadlines).values({
             userId: ctx.user.id,
             imageAdId: adId,
@@ -138,7 +186,7 @@ ${knowledgeContext.slice(0, 1000)}`,
         }
       }
 
-      return { id: adId, imageUrl: s3Url, headlines };
+      return { id: adId, imageUrl: s3Url, headlines: [...headlineTexts, ...extraHeadlines] };
     }),
 
   updatePosition: protectedProcedure

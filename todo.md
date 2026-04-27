@@ -614,3 +614,13 @@
 - [x] Frontend: "Jetzt ausführen"-Buttons im Ad Performance Dashboard
 - [x] tRPC Procedures: automation.runDailyImageAds, runDailyVideoScript, runDailyPerfSync
 - [x] Sidebar: Ad Performance Eintrag mit BarChart2 Icon
+
+## Image Ad Composite-Design Überarbeitung (April 2026)
+- [x] Backend: Sharp/Canvas-basierter Composite Ad Generator (Foto + Hintergrund + Text-Overlay)
+- [x] Backend: Headline als Text direkt auf dem Bild rendern (nicht separat)
+- [x] Backend: 4 Layout-Templates: FredTrading-Stil (oben Text, rechts Foto), News-Stil (Foto voll, Text unten), Split-Stil, Luxury-Stil
+- [x] Backend: Livio-Foto als Referenz korrekt einbetten (nicht DALL-E halluzinieren)
+- [x] Frontend: Ad-Board zeigt Composite-Bild mit Headline-Overlay
+- [x] Frontend: Headline-Eingabe direkt beim Generieren (nicht nachträglich)
+- [x] Frontend: Layout-Template-Auswahl (FredTrading / News / Split / Luxury)
+- [x] Frontend: 2-Spalten Generate-Dialog mit Template-Vorschau und Stil-Auswahl
