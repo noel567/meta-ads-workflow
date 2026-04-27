@@ -1,40 +1,326 @@
 /**
  * Composite Ad Renderer
- * Erstellt professionelle Meta Ads im FredTrading-Stil:
- * - Livio-Foto als Hauptelement (rechts oder Hintergrund)
- * - Headline + Subtext + Bullet Points als Text-Overlay
- * - EasySignals Branding (Logo + Name)
+ * Erstellt professionelle Meta Ads:
+ * - Livio-Foto als Hauptelement
+ * - Textelemente mit freien Positionen (x/y in %, fontSize)
  * - 4 Templates: fredtrading, news, split, luxury
  */
 
-import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import sharp from "sharp";
 
 export type AdTemplate = "fredtrading" | "news" | "split" | "luxury";
 
-export interface CompositeAdInput {
-  photoUrl: string;           // Livio-Foto URL
-  headline: string;           // Haupt-Headline (z.B. "KOSTENLOSER TRADING KURS")
-  subheadline?: string;       // Unter-Headline (z.B. "Lerne in nur einem Abend...")
-  bullets?: string[];         // Bullet Points (max 3)
-  cta?: string;               // Call to Action (z.B. "Jetzt kostenlos anmelden")
-  template: AdTemplate;
-  accentColor?: string;       // Akzentfarbe (hex, default: #22c55e = EasySignals Grün)
-  logoUrl?: string;           // Logo URL
+export type TextElementType = "headline" | "subheadline" | "bullet" | "cta" | "branding" | "custom";
+
+export interface TextElement {
+  id: string;
+  type: TextElementType;
+  text: string;
+  // Position in Prozent (0–100) relativ zur Canvas-Größe
+  xPct: number;
+  yPct: number;
+  fontSize: number;        // in px (auf 1080px Canvas)
+  color: string;           // hex oder rgba
+  bold: boolean;
+  align: "left" | "center" | "right";
+  bgColor?: string;        // optionaler Hintergrund (z.B. für CTA-Button)
+  bgPadding?: number;      // Padding für Hintergrund-Rechteck
+  bgRadius?: number;       // Border-Radius für Hintergrund
+  bulletIcon?: boolean;    // Bullet-Punkt davor zeichnen
+  accentLine?: boolean;    // Vertikale Accent-Linie links
+  maxWidthPct?: number;    // Maximale Breite in % (für Zeilenumbruch)
 }
 
-const CANVAS_SIZE = 1080; // 1:1 Format für Instagram/Facebook
+export interface CompositeAdInput {
+  photoUrl: string;
+  template: AdTemplate;
+  accentColor?: string;
+  // Freie Textelemente (überschreiben Template-Defaults wenn angegeben)
+  textElements?: TextElement[];
+  // Legacy-Felder (werden zu textElements konvertiert wenn keine textElements angegeben)
+  headline?: string;
+  subheadline?: string;
+  bullets?: string[];
+  cta?: string;
+}
+
+const CANVAS_SIZE = 1080;
+
+// Default TextElements pro Template
+export function getDefaultTextElements(
+  template: AdTemplate,
+  headline: string,
+  subheadline?: string,
+  bullets?: string[],
+  cta?: string,
+  accentColor?: string
+): TextElement[] {
+  const accent = accentColor ?? "#22c55e";
+  const elements: TextElement[] = [];
+
+  if (template === "fredtrading") {
+    elements.push({
+      id: "headline",
+      type: "headline",
+      text: headline.toUpperCase(),
+      xPct: 7.4,
+      yPct: 10,
+      fontSize: 72,
+      color: "#ffffff",
+      bold: true,
+      align: "left",
+      accentLine: true,
+      maxWidthPct: 60,
+    });
+    if (subheadline) {
+      elements.push({
+        id: "subheadline",
+        type: "subheadline",
+        text: subheadline,
+        xPct: 7.4,
+        yPct: 38,
+        fontSize: 34,
+        color: "rgba(255,255,255,0.75)",
+        bold: false,
+        align: "left",
+        maxWidthPct: 58,
+      });
+    }
+    if (bullets) {
+      bullets.slice(0, 3).forEach((b, i) => {
+        elements.push({
+          id: `bullet_${i}`,
+          type: "bullet",
+          text: b,
+          xPct: 7.4,
+          yPct: 55 + i * 8,
+          fontSize: 28,
+          color: "#ffffff",
+          bold: false,
+          align: "left",
+          bulletIcon: true,
+          bgColor: `${accent}1a`,
+          bgPadding: 12,
+          bgRadius: 8,
+          maxWidthPct: 50,
+        });
+      });
+    }
+    if (cta) {
+      elements.push({
+        id: "cta",
+        type: "cta",
+        text: cta,
+        xPct: 7.4,
+        yPct: 81,
+        fontSize: 28,
+        color: "#000000",
+        bold: true,
+        align: "center",
+        bgColor: accent,
+        bgPadding: 18,
+        bgRadius: 12,
+        maxWidthPct: 40,
+      });
+    }
+    elements.push({
+      id: "branding",
+      type: "branding",
+      text: "EasySignals",
+      xPct: 7.4,
+      yPct: 95,
+      fontSize: 26,
+      color: accent,
+      bold: true,
+      align: "left",
+    });
+    elements.push({
+      id: "name",
+      type: "custom",
+      text: "Livio Swiss",
+      xPct: 92.6,
+      yPct: 95,
+      fontSize: 24,
+      color: "#ffffff",
+      bold: true,
+      align: "right",
+    });
+  } else if (template === "news") {
+    elements.push({
+      id: "news_badge",
+      type: "custom",
+      text: "NEWS",
+      xPct: 5.5,
+      yPct: 8.5,
+      fontSize: 30,
+      color: "#000000",
+      bold: true,
+      align: "center",
+      bgColor: accent,
+      bgPadding: 16,
+      bgRadius: 8,
+    });
+    elements.push({
+      id: "headline",
+      type: "headline",
+      text: headline,
+      xPct: 5.5,
+      yPct: 63,
+      fontSize: 56,
+      color: "#ffffff",
+      bold: true,
+      align: "left",
+      maxWidthPct: 88,
+    });
+    if (subheadline) {
+      elements.push({
+        id: "subheadline",
+        type: "subheadline",
+        text: subheadline,
+        xPct: 5.5,
+        yPct: 80,
+        fontSize: 30,
+        color: "rgba(255,255,255,0.8)",
+        bold: false,
+        align: "left",
+        maxWidthPct: 88,
+      });
+    }
+    elements.push({
+      id: "branding",
+      type: "branding",
+      text: "EasySignals",
+      xPct: 5.5,
+      yPct: 96,
+      fontSize: 24,
+      color: accent,
+      bold: true,
+      align: "left",
+    });
+  } else if (template === "split") {
+    elements.push({
+      id: "headline",
+      type: "headline",
+      text: headline.toUpperCase(),
+      xPct: 4.6,
+      yPct: 16,
+      fontSize: 60,
+      color: "#ffffff",
+      bold: true,
+      align: "left",
+      maxWidthPct: 44,
+    });
+    if (subheadline) {
+      elements.push({
+        id: "subheadline",
+        type: "subheadline",
+        text: subheadline,
+        xPct: 4.6,
+        yPct: 44,
+        fontSize: 28,
+        color: "rgba(255,255,255,0.7)",
+        bold: false,
+        align: "left",
+        maxWidthPct: 44,
+      });
+    }
+    if (bullets) {
+      bullets.slice(0, 3).forEach((b, i) => {
+        elements.push({
+          id: `bullet_${i}`,
+          type: "bullet",
+          text: b,
+          xPct: 4.6,
+          yPct: 58 + i * 8,
+          fontSize: 24,
+          color: "#ffffff",
+          bold: false,
+          align: "left",
+          bulletIcon: true,
+          maxWidthPct: 44,
+        });
+      });
+    }
+    if (cta) {
+      elements.push({
+        id: "cta",
+        type: "cta",
+        text: cta,
+        xPct: 4.6,
+        yPct: 84,
+        fontSize: 24,
+        color: "#000000",
+        bold: true,
+        align: "center",
+        bgColor: accent,
+        bgPadding: 16,
+        bgRadius: 10,
+        maxWidthPct: 40,
+      });
+    }
+    elements.push({
+      id: "branding",
+      type: "branding",
+      text: "EasySignals",
+      xPct: 4.6,
+      yPct: 96,
+      fontSize: 22,
+      color: accent,
+      bold: true,
+      align: "left",
+    });
+  } else if (template === "luxury") {
+    elements.push({
+      id: "headline",
+      type: "headline",
+      text: headline.toUpperCase(),
+      xPct: 50,
+      yPct: 13,
+      fontSize: 54,
+      color: "#ffffff",
+      bold: true,
+      align: "center",
+      maxWidthPct: 80,
+    });
+    if (subheadline) {
+      elements.push({
+        id: "subheadline",
+        type: "subheadline",
+        text: subheadline,
+        xPct: 50,
+        yPct: 76,
+        fontSize: 28,
+        color: "rgba(255,255,255,0.8)",
+        bold: false,
+        align: "center",
+        maxWidthPct: 80,
+      });
+    }
+    elements.push({
+      id: "branding",
+      type: "branding",
+      text: "EasySignals",
+      xPct: 50,
+      yPct: 93,
+      fontSize: 26,
+      color: "#c9a227",
+      bold: true,
+      align: "center",
+    });
+  }
+
+  return elements;
+}
 
 // Hilfsfunktion: Text umbrechen
 function wrapText(ctx: any, text: string, maxWidth: number): string[] {
   const words = text.split(" ");
   const lines: string[] = [];
   let currentLine = "";
-
   for (const word of words) {
     const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const metrics = ctx.measureText(testLine);
-    if (metrics.width > maxWidth && currentLine) {
+    if (ctx.measureText(testLine).width > maxWidth && currentLine) {
       lines.push(currentLine);
       currentLine = word;
     } else {
@@ -52,422 +338,197 @@ async function fetchImageBuffer(url: string): Promise<Buffer> {
   return Buffer.from(await resp.arrayBuffer());
 }
 
-// Hilfsfunktion: Bild auf Größe bringen
 async function resizeImage(buffer: Buffer, width: number, height: number, fit: "cover" | "contain" = "cover"): Promise<Buffer> {
-  return sharp(buffer)
-    .resize(width, height, { fit, position: "top" })
-    .jpeg({ quality: 90 })
-    .toBuffer();
+  return sharp(buffer).resize(width, height, { fit, position: "top" }).jpeg({ quality: 90 }).toBuffer();
 }
 
-/**
- * Template 1: FredTrading-Stil
- * - Obere Hälfte: Dunkler Hintergrund mit großer Headline + Subtext + Bullets
- * - Untere Hälfte: Livio-Foto rechts, Bullets links
- * - Branding unten links
- */
-async function renderFredtradingTemplate(input: CompositeAdInput): Promise<Buffer> {
-  const size = CANVAS_SIZE;
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext("2d");
-  const accent = input.accentColor ?? "#22c55e";
+// Zeichnet ein einzelnes TextElement auf den Canvas
+function drawTextElement(ctx: any, el: TextElement, canvasSize: number, accentColor: string) {
+  const x = (el.xPct / 100) * canvasSize;
+  const y = (el.yPct / 100) * canvasSize;
+  const maxWidth = el.maxWidthPct ? (el.maxWidthPct / 100) * canvasSize : canvasSize - x - 40;
+  const weight = el.bold ? "bold" : "400";
+  ctx.font = `${weight} ${el.fontSize}px sans-serif`;
 
-  // --- Hintergrund: Dunkel mit Gradient ---
-  const grad = ctx.createLinearGradient(0, 0, 0, size);
-  grad.addColorStop(0, "#0a0a0a");
-  grad.addColorStop(0.5, "#111111");
-  grad.addColorStop(1, "#0d0d0d");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
-
-  // --- Livio-Foto rechts (untere 60%) ---
-  try {
-    const photoBuffer = await fetchImageBuffer(input.photoUrl);
-    const photoResized = await resizeImage(photoBuffer, 580, 680, "cover");
-    const photoImg = await loadImage(photoResized);
-    // Foto rechts positionieren
-    ctx.save();
-    ctx.drawImage(photoImg, size - 580, size - 680, 580, 680);
-    // Gradient über das Foto (links und oben abdunkeln)
-    const photoGradLeft = ctx.createLinearGradient(size - 580, 0, size - 100, 0);
-    photoGradLeft.addColorStop(0, "rgba(10,10,10,1)");
-    photoGradLeft.addColorStop(0.4, "rgba(10,10,10,0.7)");
-    photoGradLeft.addColorStop(1, "rgba(10,10,10,0)");
-    ctx.fillStyle = photoGradLeft;
-    ctx.fillRect(size - 580, size - 680, 580, 680);
-
-    const photoGradTop = ctx.createLinearGradient(0, size - 680, 0, size - 480);
-    photoGradTop.addColorStop(0, "rgba(10,10,10,1)");
-    photoGradTop.addColorStop(1, "rgba(10,10,10,0)");
-    ctx.fillStyle = photoGradTop;
-    ctx.fillRect(size - 580, size - 680, 580, 200);
-    ctx.restore();
-  } catch (e) {
-    console.error("[CompositeAd] Photo load failed:", e);
+  // Text-Zeilen berechnen
+  const rawLines = el.text.split("\n");
+  const lines: string[] = [];
+  for (const rawLine of rawLines) {
+    const wrapped = wrapText(ctx, rawLine, maxWidth);
+    lines.push(...wrapped);
   }
 
-  // --- Accent-Bar oben ---
-  ctx.fillStyle = accent;
-  ctx.fillRect(60, 60, 8, 120);
+  const lineHeight = el.fontSize * 1.25;
+  const totalTextHeight = lines.length * lineHeight;
 
-  // --- Headline ---
-  const headlineLines = input.headline.toUpperCase().split("\n");
-  let yPos = 80;
-  ctx.font = "bold 72px sans-serif";
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "left";
-  for (const line of headlineLines) {
-    const wrapped = wrapText(ctx, line, 640);
-    for (const wl of wrapped) {
-      ctx.fillText(wl, 80, yPos);
-      yPos += 80;
+  // Hintergrund-Rechteck (für CTA-Button oder Bullet-BG)
+  if (el.bgColor) {
+    const pad = el.bgPadding ?? 10;
+    const radius = el.bgRadius ?? 6;
+    let bgX = x - pad;
+    let bgY = y - el.fontSize - pad;
+    let bgW: number;
+    let bgH = totalTextHeight + pad * 2;
+
+    if (el.align === "center") {
+      // Breite = längste Zeile
+      let maxLineW = 0;
+      for (const line of lines) {
+        const w = ctx.measureText(line).width;
+        if (w > maxLineW) maxLineW = w;
+      }
+      bgW = maxLineW + pad * 2;
+      bgX = x - bgW / 2;
+    } else {
+      let maxLineW = 0;
+      for (const line of lines) {
+        const w = ctx.measureText(line).width;
+        if (w > maxLineW) maxLineW = w;
+      }
+      bgW = maxLineW + pad * 2 + (el.bulletIcon ? 30 : 0);
     }
+
+    ctx.fillStyle = el.bgColor;
+    ctx.beginPath();
+    ctx.roundRect(bgX, bgY, bgW, bgH, radius);
+    ctx.fill();
   }
 
-  // --- Subheadline ---
-  if (input.subheadline) {
-    yPos += 10;
-    ctx.font = "400 36px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    const subLines = wrapText(ctx, input.subheadline, 600);
-    for (const line of subLines) {
-      ctx.fillText(line, 80, yPos);
-      yPos += 46;
-    }
+  // Vertikale Accent-Linie links
+  if (el.accentLine) {
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(x - 20, y - el.fontSize - 10, 8, totalTextHeight + 20);
   }
 
-  // --- Trennlinie ---
-  yPos += 20;
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(80, yPos);
-  ctx.lineTo(500, yPos);
-  ctx.stroke();
-  yPos += 30;
-
-  // --- Bullet Points ---
-  if (input.bullets && input.bullets.length > 0) {
-    ctx.font = "500 30px sans-serif";
-    for (const bullet of input.bullets.slice(0, 3)) {
-      // Bullet-Hintergrund
-      ctx.fillStyle = "rgba(34,197,94,0.12)";
-      ctx.beginPath();
-      ctx.roundRect(80, yPos - 24, 480, 46, 8);
-      ctx.fill();
+  // Text zeichnen
+  ctx.textAlign = el.align;
+  let currentY = y;
+  for (const line of lines) {
+    let drawX = x;
+    if (el.bulletIcon) {
       // Bullet-Icon
-      ctx.fillStyle = accent;
+      ctx.fillStyle = accentColor;
       ctx.beginPath();
-      ctx.arc(104, yPos - 2, 6, 0, Math.PI * 2);
+      ctx.arc(drawX + 6, currentY - el.fontSize * 0.25, el.fontSize * 0.2, 0, Math.PI * 2);
       ctx.fill();
-      // Bullet-Text
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(bullet, 124, yPos + 8);
-      yPos += 58;
+      drawX += el.fontSize * 0.7;
+      ctx.textAlign = "left";
     }
+    ctx.fillStyle = el.color;
+    ctx.fillText(line, drawX, currentY);
+    currentY += lineHeight;
   }
-
-  // --- CTA Button ---
-  if (input.cta) {
-    yPos += 20;
-    const ctaWidth = 400;
-    ctx.fillStyle = accent;
-    ctx.beginPath();
-    ctx.roundRect(80, yPos, ctaWidth, 60, 12);
-    ctx.fill();
-    ctx.font = "bold 28px sans-serif";
-    ctx.fillStyle = "#000000";
-    ctx.textAlign = "center";
-    ctx.fillText(input.cta, 80 + ctaWidth / 2, yPos + 38);
-    ctx.textAlign = "left";
-  }
-
-  // --- Branding unten links ---
-  ctx.font = "bold 28px sans-serif";
-  ctx.fillStyle = accent;
-  ctx.fillText("EasySignals", 80, size - 50);
-  ctx.font = "300 22px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.fillText("Automatisiertes Trading", 80, size - 22);
-
-  // --- Livio-Name unten rechts (über Foto) ---
-  ctx.font = "bold 26px sans-serif";
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "right";
-  ctx.fillText("Livio Swiss", size - 40, size - 50);
-  ctx.font = "300 20px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.fillText("Gründer EasySignals", size - 40, size - 24);
-  ctx.textAlign = "left";
-
-  return canvas.toBuffer("image/jpeg", 90);
+  ctx.textAlign = "left"; // Reset
 }
 
-/**
- * Template 2: News-Stil (wie FredTrading Bild 2)
- * - Livio-Foto als Vollbild-Hintergrund
- * - "NEWS" Badge oben links
- * - Großer Text-Block unten (weißer Hintergrund-Streifen)
- */
-async function renderNewsTemplate(input: CompositeAdInput): Promise<Buffer> {
-  const size = CANVAS_SIZE;
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext("2d");
-  const accent = input.accentColor ?? "#22c55e";
-
-  // --- Livio-Foto als Vollbild ---
-  try {
-    const photoBuffer = await fetchImageBuffer(input.photoUrl);
-    const photoResized = await resizeImage(photoBuffer, size, size, "cover");
-    const photoImg = await loadImage(photoResized);
-    ctx.drawImage(photoImg, 0, 0, size, size);
-  } catch (e) {
-    ctx.fillStyle = "#111";
+// Hintergrund + Foto für jedes Template rendern
+async function renderBackground(ctx: any, template: AdTemplate, photoUrl: string, accentColor: string, size: number) {
+  if (template === "fredtrading") {
+    const grad = ctx.createLinearGradient(0, 0, 0, size);
+    grad.addColorStop(0, "#0a0a0a");
+    grad.addColorStop(0.5, "#111111");
+    grad.addColorStop(1, "#0d0d0d");
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
-  }
-
-  // --- Dunkler Gradient unten ---
-  const bottomGrad = ctx.createLinearGradient(0, size * 0.45, 0, size);
-  bottomGrad.addColorStop(0, "rgba(0,0,0,0)");
-  bottomGrad.addColorStop(0.3, "rgba(0,0,0,0.85)");
-  bottomGrad.addColorStop(1, "rgba(0,0,0,0.97)");
-  ctx.fillStyle = bottomGrad;
-  ctx.fillRect(0, 0, size, size);
-
-  // --- NEWS Badge ---
-  ctx.fillStyle = accent;
-  ctx.beginPath();
-  ctx.roundRect(60, 60, 160, 56, 8);
-  ctx.fill();
-  ctx.font = "bold 32px sans-serif";
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "center";
-  ctx.fillText("NEWS", 140, 96);
-  ctx.textAlign = "left";
-
-  // --- Headline unten ---
-  const textStartY = size * 0.62;
-  ctx.font = "bold 58px sans-serif";
-  ctx.fillStyle = "#ffffff";
-  const headlineLines = wrapText(ctx, input.headline, size - 120);
-  let yPos = textStartY;
-  for (const line of headlineLines) {
-    ctx.fillText(line, 60, yPos);
-    yPos += 68;
-  }
-
-  // --- Subheadline ---
-  if (input.subheadline) {
-    yPos += 8;
-    ctx.font = "400 32px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
-    const subLines = wrapText(ctx, input.subheadline, size - 120);
-    for (const line of subLines.slice(0, 2)) {
-      ctx.fillText(line, 60, yPos);
-      yPos += 42;
-    }
-  }
-
-  // --- Branding ---
-  ctx.font = "bold 26px sans-serif";
-  ctx.fillStyle = accent;
-  ctx.fillText("EasySignals", 60, size - 30);
-
-  return canvas.toBuffer("image/jpeg", 90);
-}
-
-/**
- * Template 3: Split-Stil
- * - Linke Hälfte: Dunkler Hintergrund mit Text
- * - Rechte Hälfte: Livio-Foto
- * - Scharfe Trennlinie mit Accent-Farbe
- */
-async function renderSplitTemplate(input: CompositeAdInput): Promise<Buffer> {
-  const size = CANVAS_SIZE;
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext("2d");
-  const accent = input.accentColor ?? "#22c55e";
-  const half = size / 2;
-
-  // --- Linke Hälfte: Dunkler Hintergrund ---
-  ctx.fillStyle = "#0a0a0a";
-  ctx.fillRect(0, 0, half + 20, size);
-
-  // --- Rechte Hälfte: Livio-Foto ---
-  try {
-    const photoBuffer = await fetchImageBuffer(input.photoUrl);
-    const photoResized = await resizeImage(photoBuffer, half + 20, size, "cover");
-    const photoImg = await loadImage(photoResized);
-    ctx.drawImage(photoImg, half - 20, 0, half + 20, size);
-    // Gradient über Foto-Kante
-    const edgeGrad = ctx.createLinearGradient(half - 20, 0, half + 60, 0);
-    edgeGrad.addColorStop(0, "rgba(10,10,10,1)");
-    edgeGrad.addColorStop(1, "rgba(10,10,10,0)");
-    ctx.fillStyle = edgeGrad;
-    ctx.fillRect(half - 20, 0, 80, size);
-  } catch (e) {
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(half, 0, half, size);
-  }
-
-  // --- Accent-Linie ---
-  ctx.fillStyle = accent;
-  ctx.fillRect(half - 3, 0, 6, size);
-
-  // --- Text links ---
-  let yPos = 100;
-  ctx.font = "bold 64px sans-serif";
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "left";
-  const headlineLines = wrapText(ctx, input.headline.toUpperCase(), half - 80);
-  for (const line of headlineLines) {
-    ctx.fillText(line, 50, yPos);
-    yPos += 74;
-  }
-
-  if (input.subheadline) {
-    yPos += 20;
-    ctx.font = "400 30px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    const subLines = wrapText(ctx, input.subheadline, half - 80);
-    for (const line of subLines) {
-      ctx.fillText(line, 50, yPos);
-      yPos += 40;
-    }
-  }
-
-  // Bullets
-  if (input.bullets) {
-    yPos += 30;
-    ctx.font = "500 26px sans-serif";
-    for (const b of input.bullets.slice(0, 3)) {
-      ctx.fillStyle = accent;
-      ctx.fillText("▶", 50, yPos);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(b, 80, yPos);
-      yPos += 46;
-    }
-  }
-
-  // CTA
-  if (input.cta) {
-    yPos += 20;
-    ctx.fillStyle = accent;
-    ctx.beginPath();
-    ctx.roundRect(50, yPos, 380, 56, 10);
-    ctx.fill();
-    ctx.font = "bold 26px sans-serif";
-    ctx.fillStyle = "#000";
-    ctx.textAlign = "center";
-    ctx.fillText(input.cta, 240, yPos + 36);
-    ctx.textAlign = "left";
-  }
-
-  // Branding
-  ctx.font = "bold 24px sans-serif";
-  ctx.fillStyle = accent;
-  ctx.fillText("EasySignals", 50, size - 30);
-
-  return canvas.toBuffer("image/jpeg", 90);
-}
-
-/**
- * Template 4: Luxury-Stil
- * - Gold/Schwarz Farbschema
- * - Livio-Foto zentriert mit Vignette
- * - Elegante Typografie
- */
-async function renderLuxuryTemplate(input: CompositeAdInput): Promise<Buffer> {
-  const size = CANVAS_SIZE;
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext("2d");
-  const accent = "#c9a227"; // Gold
-
-  // Hintergrund
-  ctx.fillStyle = "#050505";
-  ctx.fillRect(0, 0, size, size);
-
-  // Livio-Foto zentriert
-  try {
-    const photoBuffer = await fetchImageBuffer(input.photoUrl);
-    const photoResized = await resizeImage(photoBuffer, 700, 700, "cover");
-    const photoImg = await loadImage(photoResized);
-    ctx.drawImage(photoImg, (size - 700) / 2, (size - 700) / 2 + 50, 700, 700);
-
-    // Radiale Vignette
-    const vignette = ctx.createRadialGradient(size / 2, size / 2, 200, size / 2, size / 2, size * 0.7);
-    vignette.addColorStop(0, "rgba(5,5,5,0)");
-    vignette.addColorStop(0.6, "rgba(5,5,5,0.3)");
-    vignette.addColorStop(1, "rgba(5,5,5,0.95)");
-    ctx.fillStyle = vignette;
+    try {
+      const photoBuffer = await fetchImageBuffer(photoUrl);
+      const photoResized = await resizeImage(photoBuffer, 580, 680, "cover");
+      const photoImg = await loadImage(photoResized);
+      ctx.drawImage(photoImg, size - 580, size - 680, 580, 680);
+      const photoGradLeft = ctx.createLinearGradient(size - 580, 0, size - 100, 0);
+      photoGradLeft.addColorStop(0, "rgba(10,10,10,1)");
+      photoGradLeft.addColorStop(0.4, "rgba(10,10,10,0.7)");
+      photoGradLeft.addColorStop(1, "rgba(10,10,10,0)");
+      ctx.fillStyle = photoGradLeft;
+      ctx.fillRect(size - 580, size - 680, 580, 680);
+      const photoGradTop = ctx.createLinearGradient(0, size - 680, 0, size - 480);
+      photoGradTop.addColorStop(0, "rgba(10,10,10,1)");
+      photoGradTop.addColorStop(1, "rgba(10,10,10,0)");
+      ctx.fillStyle = photoGradTop;
+      ctx.fillRect(size - 580, size - 680, 580, 200);
+    } catch (e) { console.error("[CompositeAd] Photo load failed:", e); }
+  } else if (template === "news") {
+    try {
+      const photoBuffer = await fetchImageBuffer(photoUrl);
+      const photoResized = await resizeImage(photoBuffer, size, size, "cover");
+      const photoImg = await loadImage(photoResized);
+      ctx.drawImage(photoImg, 0, 0, size, size);
+    } catch (e) { ctx.fillStyle = "#111"; ctx.fillRect(0, 0, size, size); }
+    const bottomGrad = ctx.createLinearGradient(0, size * 0.45, 0, size);
+    bottomGrad.addColorStop(0, "rgba(0,0,0,0)");
+    bottomGrad.addColorStop(0.3, "rgba(0,0,0,0.85)");
+    bottomGrad.addColorStop(1, "rgba(0,0,0,0.97)");
+    ctx.fillStyle = bottomGrad;
     ctx.fillRect(0, 0, size, size);
-  } catch (e) {
-    ctx.fillStyle = "#111";
+  } else if (template === "split") {
+    const half = size / 2;
+    ctx.fillStyle = "#0a0a0a";
+    ctx.fillRect(0, 0, half + 20, size);
+    try {
+      const photoBuffer = await fetchImageBuffer(photoUrl);
+      const photoResized = await resizeImage(photoBuffer, half + 20, size, "cover");
+      const photoImg = await loadImage(photoResized);
+      ctx.drawImage(photoImg, half - 20, 0, half + 20, size);
+      const edgeGrad = ctx.createLinearGradient(half - 20, 0, half + 60, 0);
+      edgeGrad.addColorStop(0, "rgba(10,10,10,1)");
+      edgeGrad.addColorStop(1, "rgba(10,10,10,0)");
+      ctx.fillStyle = edgeGrad;
+      ctx.fillRect(half - 20, 0, 80, size);
+    } catch (e) { ctx.fillStyle = "#1a1a1a"; ctx.fillRect(half, 0, half, size); }
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(half - 3, 0, 6, size);
+  } else if (template === "luxury") {
+    ctx.fillStyle = "#050505";
     ctx.fillRect(0, 0, size, size);
+    try {
+      const photoBuffer = await fetchImageBuffer(photoUrl);
+      const photoResized = await resizeImage(photoBuffer, 700, 700, "cover");
+      const photoImg = await loadImage(photoResized);
+      ctx.drawImage(photoImg, (size - 700) / 2, (size - 700) / 2 + 50, 700, 700);
+      const vignette = ctx.createRadialGradient(size / 2, size / 2, 200, size / 2, size / 2, size * 0.7);
+      vignette.addColorStop(0, "rgba(5,5,5,0)");
+      vignette.addColorStop(0.6, "rgba(5,5,5,0.3)");
+      vignette.addColorStop(1, "rgba(5,5,5,0.95)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, size, size);
+    } catch (e) { ctx.fillStyle = "#111"; ctx.fillRect(0, 0, size, size); }
+    // Goldene Rahmen
+    const gold = "#c9a227";
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(30, 30, size - 60, size - 60);
+    ctx.strokeRect(38, 38, size - 76, size - 76);
   }
-
-  // Goldene Rahmen-Linien
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(30, 30, size - 60, size - 60);
-  ctx.strokeRect(38, 38, size - 76, size - 76);
-
-  // Headline oben
-  ctx.font = "bold 56px sans-serif";
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "center";
-  const headlineLines = wrapText(ctx, input.headline.toUpperCase(), size - 160);
-  let yPos = 120;
-  for (const line of headlineLines) {
-    ctx.fillText(line, size / 2, yPos);
-    yPos += 66;
-  }
-
-  // Gold-Trennlinie
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(size / 2 - 150, yPos + 10);
-  ctx.lineTo(size / 2 + 150, yPos + 10);
-  ctx.stroke();
-
-  // Text unten
-  yPos = size - 280;
-  if (input.subheadline) {
-    ctx.font = "300 30px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
-    const subLines = wrapText(ctx, input.subheadline, size - 160);
-    for (const line of subLines.slice(0, 2)) {
-      ctx.fillText(line, size / 2, yPos);
-      yPos += 40;
-    }
-  }
-
-  // Branding
-  ctx.font = "bold 28px sans-serif";
-  ctx.fillStyle = accent;
-  ctx.fillText("EasySignals", size / 2, size - 50);
-  ctx.font = "300 20px sans-serif";
-  ctx.fillStyle = "rgba(201,162,39,0.6)";
-  ctx.fillText("Automatisiertes Trading", size / 2, size - 22);
-
-  return canvas.toBuffer("image/jpeg", 90);
 }
 
 /**
- * Haupt-Funktion: Rendert eine Composite Ad
+ * Haupt-Funktion: Rendert eine Composite Ad mit freien Textpositionen
  */
 export async function renderCompositeAd(input: CompositeAdInput): Promise<Buffer> {
-  switch (input.template) {
-    case "fredtrading":
-      return renderFredtradingTemplate(input);
-    case "news":
-      return renderNewsTemplate(input);
-    case "split":
-      return renderSplitTemplate(input);
-    case "luxury":
-      return renderLuxuryTemplate(input);
-    default:
-      return renderFredtradingTemplate(input);
+  const size = CANVAS_SIZE;
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext("2d");
+  const accent = input.accentColor ?? "#22c55e";
+
+  // Hintergrund + Foto rendern
+  await renderBackground(ctx, input.template, input.photoUrl, accent, size);
+
+  // TextElements bestimmen: entweder aus input.textElements oder aus Legacy-Feldern generieren
+  const elements = input.textElements && input.textElements.length > 0
+    ? input.textElements
+    : getDefaultTextElements(
+        input.template,
+        input.headline ?? "",
+        input.subheadline,
+        input.bullets,
+        input.cta,
+        accent
+      );
+
+  // Alle Textelemente zeichnen
+  for (const el of elements) {
+    drawTextElement(ctx, el, size, accent);
   }
+
+  return canvas.toBuffer("image/jpeg", 90);
 }

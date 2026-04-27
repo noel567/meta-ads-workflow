@@ -4,9 +4,8 @@ import { getDb } from "./db";
 import { imageAds, adHeadlines, knowledgeFiles } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
-import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
-import { renderCompositeAd, type AdTemplate } from "./compositeAdRenderer";
+import { renderCompositeAd, getDefaultTextElements, type AdTemplate, type TextElement } from "./compositeAdRenderer";
 
 // Livio reference photo URL for image generation
 const LIVIO_PHOTO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663565941002/UojQwiICNYeKudJO.webp";
@@ -41,6 +40,28 @@ export const imageAdsRouter = router({
     return result;
   }),
 
+  // Gibt Default-TextElements für ein Template zurück (für den Editor)
+  getDefaultElements: protectedProcedure
+    .input(z.object({
+      template: z.enum(["fredtrading", "news", "split", "luxury"]),
+      headline: z.string(),
+      subheadline: z.string().optional(),
+      bullets: z.array(z.string()).optional(),
+      cta: z.string().optional(),
+      accentColor: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const elements = getDefaultTextElements(
+        input.template as AdTemplate,
+        input.headline,
+        input.subheadline,
+        input.bullets,
+        input.cta,
+        input.accentColor
+      );
+      return { elements };
+    }),
+
   generate: protectedProcedure
     .input(
       z.object({
@@ -53,6 +74,24 @@ export const imageAdsRouter = router({
         cta: z.string().max(50).optional(),
         customPrompt: z.string().optional(),
         generateHeadlines: z.boolean().default(true),
+        // Freie Textpositionen aus dem Editor
+        textElements: z.array(z.object({
+          id: z.string(),
+          type: z.enum(["headline", "subheadline", "bullet", "cta", "branding", "custom"]),
+          text: z.string(),
+          xPct: z.number().min(0).max(100),
+          yPct: z.number().min(0).max(100),
+          fontSize: z.number().min(8).max(200),
+          color: z.string(),
+          bold: z.boolean(),
+          align: z.enum(["left", "center", "right"]),
+          bgColor: z.string().optional(),
+          bgPadding: z.number().optional(),
+          bgRadius: z.number().optional(),
+          bulletIcon: z.boolean().optional(),
+          accentLine: z.boolean().optional(),
+          maxWidthPct: z.number().optional(),
+        })).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -107,15 +146,19 @@ Kontext: ${knowledgeContext.slice(0, 600)}`,
         }
       }
 
-      // Composite Ad rendern (Livio-Foto + Text-Overlay)
+      const accentColor = input.style === "luxury" ? "#c9a227" : "#22c55e";
+
+      // Composite Ad rendern: textElements aus Editor oder Default-Layout
       const compositeBuffer = await renderCompositeAd({
         photoUrl: LIVIO_PHOTO_URL,
+        template: input.template as AdTemplate,
+        accentColor,
+        // Wenn textElements vom Editor übergeben, diese verwenden; sonst Legacy-Felder
+        textElements: input.textElements as TextElement[] | undefined,
         headline: input.headline,
         subheadline: subheadline || undefined,
         bullets: bullets.length > 0 ? bullets : undefined,
         cta: input.cta,
-        template: input.template as AdTemplate,
-        accentColor: input.style === "luxury" ? "#c9a227" : "#22c55e",
       });
 
       // Upload Composite Ad zu S3

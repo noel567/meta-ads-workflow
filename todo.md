@@ -624,3 +624,18 @@
 - [x] Frontend: Headline-Eingabe direkt beim Generieren (nicht nachträglich)
 - [x] Frontend: Layout-Template-Auswahl (FredTrading / News / Split / Luxury)
 - [x] Frontend: 2-Spalten Generate-Dialog mit Template-Vorschau und Stil-Auswahl
+
+## Drag-and-Drop Ad-Editor (April 2026)
+- [x] Backend: compositeAdRenderer.ts – Textpositionen (x/y in %) und fontSize als Parameter akzeptieren
+- [x] Backend: imageAdsRouter.ts – generate Procedure um textElements-Array erweitern + getDefaultElements Query
+- [x] Frontend: AdTextEditor.tsx – Canvas-basierter Editor mit Drag-and-Drop für Textelemente
+- [x] Frontend: Resize-Handles an Textelementen (Größe per Ziehen anpassen, vertikales Ziehen)
+- [x] Frontend: Echtzeit-Vorschau während Drag (CSS-Positionen, Livio-Foto als Hintergrund)
+- [x] Frontend: Toolbar: Schriftgröße, Farbe, Fett/Normal, Ausrichtung pro Textelement
+- [x] Frontend: Doppelklick = Inline-Text-Bearbeitung
+- [x] Frontend: Typ-Labels + farbige Auswahl-Rahmen pro Element-Typ
+- [x] Frontend: Element-Liste am unteren Rand (schnelle Auswahl)
+- [x] Frontend: "Text hinzufügen" Button (freie Custom-Elemente)
+- [x] Frontend: "Rendern"-Button speichert finale Positionen und erstellt Composite-Bild
+- [x] Frontend: ImageAds.tsx – 2-Schritt-Workflow (Formular → Editor → Rendern)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
