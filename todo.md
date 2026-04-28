@@ -690,3 +690,9 @@
 - [x] ads_management aus OAuth-Scopes entfernt (nur Lesen + Kommentare)
 - [x] Permissions-Übersicht in MetaConnect.tsx angepasst (ads_management entfernt)
 - [x] 0 TypeScript-Fehler
+
+## Bug: Falsche Ausgaben in Ad Performance (April 2026)
+- [x] Backend: getPerformanceOverview mit datePreset-Parameter erweitert
+- [x] Backend: Spend direkt vom Ad Account via Meta API geholt (nicht aus DB-Cache)
+- [x] Frontend: Zeitraum-Dropdown in AdPerformance.tsx (heute, gestern, 7d, 14d, 30d, 90d, gesamte Laufzeit)
+- [x] 0 TypeScript-Fehler

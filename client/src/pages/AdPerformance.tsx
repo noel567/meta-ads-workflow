@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   TrendingUp,
   Trophy,
@@ -17,6 +18,16 @@ import {
   Play,
 } from "lucide-react";
 import { toast } from "sonner";
+
+const DATE_PRESETS = [
+  { value: "today", label: "Heute" },
+  { value: "yesterday", label: "Gestern" },
+  { value: "last_7d", label: "Letzte 7 Tage" },
+  { value: "last_14d", label: "Letzte 14 Tage" },
+  { value: "last_30d", label: "Letzte 30 Tage" },
+  { value: "last_90d", label: "Letzte 90 Tage" },
+  { value: "maximum", label: "Gesamte Laufzeit" },
+] as const;
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-500/20 text-gray-400 border-gray-500/30",
@@ -39,8 +50,9 @@ export default function AdPerformance() {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [generatingVideo, setGeneratingVideo] = useState(false);
   const [syncingPerf, setSyncingPerf] = useState(false);
+  const [datePreset, setDatePreset] = useState<"today" | "yesterday" | "last_7d" | "last_14d" | "last_30d" | "last_90d" | "maximum">("last_30d");
 
-  const { data: overview, refetch } = trpc.imageAds.getPerformanceOverview.useQuery();
+  const { data: overview, refetch } = trpc.imageAds.getPerformanceOverview.useQuery({ datePreset });
   const { data: allAds } = trpc.imageAds.list.useQuery();
 
   const syncMutation = trpc.imageAds.syncPerformance.useMutation({
@@ -115,14 +127,28 @@ export default function AdPerformance() {
             Übersicht deiner Meta Ads Performance – CTR, Spend, Gewinner
           </p>
         </div>
-        <Button
-          onClick={handleSync}
-          disabled={syncing}
-          className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Synchronisiere..." : "Performance Sync"}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={datePreset} onValueChange={(v) => setDatePreset(v as typeof datePreset)}>
+            <SelectTrigger className="w-44 bg-[#1a1a2e] border-[#2a2a4a] text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-[#1a1a2e] border-[#2a2a4a]">
+              {DATE_PRESETS.map(p => (
+                <SelectItem key={p.value} value={p.value} className="text-white hover:bg-[#2a2a4a]">
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={handleSync}
+            disabled={syncing}
+            className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Synchronisiere..." : "Performance Sync"}
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -176,8 +202,8 @@ export default function AdPerformance() {
                 <DollarSign className="w-5 h-5 text-purple-400" />
               </div>
               <div>
-                <p className="text-xs text-gray-400">Gesamt Spend</p>
-                <p className="text-2xl font-bold text-white">€{overview?.totalSpend ?? 0}</p>
+                <p className="text-xs text-gray-400">Gesamt Spend <span className="text-purple-400">({DATE_PRESETS.find(p => p.value === datePreset)?.label})</span></p>
+                <p className="text-2xl font-bold text-white">€{overview?.totalSpend?.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "0.00"}</p>
               </div>
             </div>
           </CardContent>

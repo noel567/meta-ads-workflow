@@ -389,26 +389,57 @@ Antworte NUR mit den 4 Headlines, eine pro Zeile, keine Nummerierung.`,
     }),
 
   getPerformanceOverview: protectedProcedure
-    .query(async ({ ctx }) => {
+    .input(z.object({
+      datePreset: z.enum(["today", "yesterday", "last_7d", "last_14d", "last_30d", "last_90d", "maximum"]).default("last_30d"),
+    }).optional())
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB not available");
+      const datePreset = input?.datePreset ?? "last_30d";
+
+      // Ads aus DB für CTR/Status-Metriken
       const ads = await db
         .select()
         .from(imageAds)
         .where(eq(imageAds.userId, ctx.user.id));
       const winners = ads.filter(a => a.boardStatus === "winner");
       const active = ads.filter(a => a.boardStatus === "active");
-      const totalSpend = ads.reduce((s, a) => s + (a.spend ?? 0), 0);
       const adsWithCtr = ads.filter(a => a.ctr && a.ctr > 0);
       const avgCtr = adsWithCtr.length > 0
         ? adsWithCtr.reduce((s, a) => s + (a.ctr ?? 0), 0) / adsWithCtr.length
         : 0;
+
+      // Live-Spend direkt vom Ad Account via Meta API holen
+      let totalSpend = ads.reduce((s, a) => s + (a.spend ?? 0), 0); // Fallback: DB-Cache
+      try {
+        const { getDb: _getDb } = await import("./db");
+        const { metaConnections } = await import("../drizzle/schema");
+        const { eq: _eq } = await import("drizzle-orm");
+        const conn = await db.select().from(metaConnections).where(_eq(metaConnections.userId, ctx.user.id)).limit(1);
+        if (conn[0]?.accessToken && conn[0]?.adAccountId) {
+          const token = conn[0].accessToken;
+          const adAccountId = conn[0].adAccountId;
+          const url = `https://graph.facebook.com/v19.0/${adAccountId}/insights?fields=spend&date_preset=${datePreset}&access_token=${token}`;
+          const resp = await fetch(url);
+          const data = await resp.json() as any;
+          if (data.data && data.data.length > 0) {
+            totalSpend = parseFloat(data.data[0].spend ?? "0");
+          } else if (data.data && data.data.length === 0) {
+            totalSpend = 0; // Kein Spend in diesem Zeitraum
+          }
+        }
+      } catch (e) {
+        console.error("[AdPerformance] Live-Spend Fehler:", e);
+        // Fallback bleibt DB-Cache
+      }
+
       return {
         total: ads.length,
         winners: winners.length,
         active: active.length,
         totalSpend: Math.round(totalSpend * 100) / 100,
         avgCtr: Math.round(avgCtr * 100) / 100,
+        datePreset,
         topAds: ads
           .filter(a => a.ctr && a.ctr > 0)
           .sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))
