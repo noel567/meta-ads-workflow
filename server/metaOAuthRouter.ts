@@ -22,7 +22,6 @@ const META_BASE = "https://graph.facebook.com/v19.0";
 const REQUIRED_SCOPES = [
   "ads_read",                   // Ads & Kampagnen lesen
   "pages_read_engagement",      // Kommentare & Reaktionen lesen
-  "pages_manage_engagement",    // Kommentare beantworten & verstecken
   "pages_show_list",            // Verbundene Seiten anzeigen
   "business_management",        // Business-Account-Zugriff
   "public_profile",             // Basis-Profil
