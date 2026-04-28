@@ -202,11 +202,11 @@ export default function MetaConnect() {
 
               {/* Actions */}
               <div className="pt-3 border-t border-border/50 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => syncCampaignsMutation.mutate()} disabled={syncCampaignsMutation.isPending} className="border-border/50">
+                <Button size="sm" variant="outline" onClick={() => syncCampaignsMutation.mutate({})} disabled={syncCampaignsMutation.isPending} className="border-border/50">
                   {syncCampaignsMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-2" />}
                   Kampagnen sync
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => syncAdsMutation.mutate()} disabled={syncAdsMutation.isPending} className="border-border/50">
+                <Button size="sm" variant="outline" onClick={() => syncAdsMutation.mutate({})} disabled={syncAdsMutation.isPending} className="border-border/50">
                   {syncAdsMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-2" />}
                   Ads sync (30d)
                 </Button>

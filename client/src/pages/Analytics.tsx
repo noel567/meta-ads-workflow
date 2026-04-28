@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   BarChart3,
@@ -16,6 +17,17 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+
+const DATE_PRESETS = [
+  { value: "today", label: "Heute" },
+  { value: "yesterday", label: "Gestern" },
+  { value: "last_7d", label: "Letzte 7 Tage" },
+  { value: "last_14d", label: "Letzte 14 Tage" },
+  { value: "last_30d", label: "Letzte 30 Tage" },
+  { value: "last_90d", label: "Letzte 90 Tage" },
+  { value: "maximum", label: "Gesamte Laufzeit" },
+] as const;
+type DatePreset = typeof DATE_PRESETS[number]["value"];
 import {
   BarChart,
   Bar,
@@ -95,6 +107,7 @@ export default function Analytics() {
   const [, setLocation] = useLocation();
   const [showInsights, setShowInsights] = useState(false);
   const [expandedAd, setExpandedAd] = useState<number | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>("last_30d");
 
   const { data: campaigns, isLoading: loadingCampaigns } = trpc.analytics.getCampaigns.useQuery();
   const { data: ads, isLoading: loadingAds } = trpc.analytics.getAds.useQuery();
@@ -107,7 +120,7 @@ export default function Analytics() {
 
   const syncCampaignsMutation = trpc.meta.syncCampaigns.useMutation({
     onSuccess: (data) => {
-      toast.success(`${data.synced} Kampagnen synchronisiert`);
+      toast.success(`${data.synced} Kampagnen synchronisiert (${DATE_PRESETS.find(p => p.value === datePreset)?.label})`);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -122,8 +135,8 @@ export default function Analytics() {
   const utils = trpc.useUtils();
 
   const handleSync = async () => {
-    await syncCampaignsMutation.mutateAsync();
-    await syncAdsMutation.mutateAsync();
+    await syncCampaignsMutation.mutateAsync({ datePreset });
+    await syncAdsMutation.mutateAsync({ datePreset });
     utils.analytics.getCampaigns.invalidate();
     utils.analytics.getAds.invalidate();
   };
@@ -190,14 +203,24 @@ export default function Analytics() {
     <DashboardLayout>
       <div className="p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight mb-1">Ads Performance</h1>
             <p className="text-sm text-muted-foreground">
-              Letzte 30 Tage · {connection.adAccountName}
+              {DATE_PRESETS.find(p => p.value === datePreset)?.label} · {connection.adAccountName}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Select value={datePreset} onValueChange={(v) => setDatePreset(v as DatePreset)}>
+              <SelectTrigger className="w-44 h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DATE_PRESETS.map(p => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
               size="sm"

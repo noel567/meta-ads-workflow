@@ -251,11 +251,12 @@ const metaRouter = router({
     await deleteAdsByUser(ctx.user.id);
     return { success: true };
   }),
-  syncCampaigns: protectedProcedure.mutation(async ({ ctx }) => {
+  syncCampaigns: protectedProcedure.input(z.object({ datePreset: z.string().optional() })).mutation(async ({ ctx, input }) => {
     const conn = await getMetaConnection(ctx.user.id);
     if (!conn) throw new Error("Keine Meta-Verbindung gefunden.");
+    const dp = input.datePreset || "last_30d";
     const data = await fetchMetaAPI(`/${conn.adAccountId}/campaigns`, conn.accessToken, {
-      fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights{spend,impressions,clicks,ctr,cpc,reach}",
+      fields: `id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(${dp}){spend,impressions,clicks,ctr,cpc,reach}`,
       limit: "50",
     });
     const campaigns = (data.data || []).map((c: any) => ({
@@ -278,15 +279,16 @@ const metaRouter = router({
     await upsertCampaigns(ctx.user.id, campaigns);
     return { synced: campaigns.length };
   }),
-  syncAds: protectedProcedure.mutation(async ({ ctx }) => {
+  syncAds: protectedProcedure.input(z.object({ datePreset: z.string().optional() })).mutation(async ({ ctx, input }) => {
     const conn = await getMetaConnection(ctx.user.id);
     if (!conn) throw new Error("Keine Meta-Verbindung gefunden.");
+    const dp = input.datePreset || "last_30d";
     const campaignsData = await getCampaigns(ctx.user.id);
     let totalSynced = 0;
     for (const campaign of campaignsData.slice(0, 10)) {
       try {
         const data = await fetchMetaAPI(`/${campaign.metaId}/ads`, conn.accessToken, {
-          fields: "id,name,status,creative{title,body,image_url},insights{spend,impressions,clicks,ctr,cpc,reach,actions}",
+          fields: `id,name,status,creative{title,body,image_url},insights.date_preset(${dp}){spend,impressions,clicks,ctr,cpc,reach,actions}`,
           limit: "20",
         });
         const ads = (data.data || []).map((ad: any) => {
