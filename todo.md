@@ -648,6 +648,6 @@
 - [x] Meta Ads Workflow: pushImageAdToBrain() in imageAdsRouter.ts nach generate aufrufen
 - [x] Meta Ads Workflow: pushVideoAdToBrain() in videoAdsRouter.ts nach generate aufrufen
 - [x] Meta Ads Workflow: pushPerformanceToBrain() in imageAdsRouter.ts nach syncPerformance aufrufen
-- [ ] Meta Ads Workflow: pushAnalysisToBrain() in metaInsightsRouter.ts nach Analyse aufrufen (optional)
+- [x] Meta Ads Workflow: pushAnalysisToBrain() in metaInsightsRouter.ts nach Analyse aufrufen
 - [x] Integration getestet: 3 Nodes gesendet, total_nodes=101 auf VPS Brain
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

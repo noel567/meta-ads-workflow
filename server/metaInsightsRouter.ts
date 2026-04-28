@@ -3,6 +3,7 @@ import { protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { saveInsights, getInsights, saveAiAnalysis, getLatestAiAnalysis, getAiAnalysisHistory } from "./metaInsightsDb";
 import { getMetaConnection } from "./db";
+import { pushAnalysisToBrain } from "./brainPush";
 
 const META_BASE = "https://graph.facebook.com/v19.0";
 const META_TOKEN = process.env.META_ACCESS_TOKEN;
@@ -253,6 +254,15 @@ Antworte NUR mit validem JSON in diesem Format:
       };
 
       await saveAiAnalysis(analysisData);
+
+      // Brain Push: KI-Analyse an VPS Brain senden (fire-and-forget)
+      pushAnalysisToBrain({
+        id: Date.now(),
+        summary: parsed.summary ?? "",
+        recommendations: (parsed.actionItems ?? []).slice(0, 3).map((a: any) => typeof a === "string" ? a : a.action ?? ""),
+        createdAt: new Date(),
+      }).catch(() => {});
+
       return analysisData;
     }),
 
