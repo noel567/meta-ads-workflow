@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startScheduler, runDailyScan } from "../scheduler";
 import { registerGoogleOAuthRoutes } from "../googleOAuthRoutes";
+import { registerMetaOAuthRoutes } from "../metaOAuthRouter";
 import { createExternalApiRouter } from "../externalApiRoutes";
 import { ENV } from "./env";
 
@@ -41,6 +42,8 @@ async function startServer() {
   registerAuthRoutes(app);
   // Google Drive OAuth routes
   registerGoogleOAuthRoutes(app);
+  // Meta OAuth routes (pages_read_engagement + pages_manage_engagement)
+  registerMetaOAuthRoutes(app);
   // Public Telegram getUpdates endpoint to discover chat IDs
   app.get("/api/telegram/get-updates", async (_req, res) => {
     try {

@@ -668,3 +668,14 @@
 - [x] Sidebar-Eintrag: Comment Manager mit MessageSquare Icon
 - [x] Route: /comment-manager
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Meta OAuth-Flow (April 2026)
+- [x] Backend: /api/meta/oauth/start – Redirect zu Meta Login mit allen Permissions
+- [x] Backend: /api/meta/oauth/callback – Code → Access Token Exchange
+- [x] Backend: Page Token Exchange (User Token → Page Access Token)
+- [x] Backend: Token in meta_connections speichern (inkl. Page Token + Page ID)
+- [x] Frontend: MetaConnect.tsx – "Mit Meta verbinden" OAuth-Button
+- [x] Frontend: Verbindungsstatus mit Permissions-Übersicht anzeigen
+- [x] Comment Manager: Page Token für Kommentar-Sync nutzen
+- [x] Backend: /api/meta/oauth/status – Live-Status-Endpoint (scopes, pageName, adAccountName)
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
