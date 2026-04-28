@@ -651,3 +651,20 @@
 - [x] Meta Ads Workflow: pushAnalysisToBrain() in metaInsightsRouter.ts nach Analyse aufrufen
 - [x] Integration getestet: 3 Nodes gesendet, total_nodes=101 auf VPS Brain
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Comment Manager (April 2026)
+- [x] DB: meta_comments Tabelle (commentId, postId, adId, platform, authorName, message, sentiment, status, aiReply, sentReply)
+- [x] Backend: commentManagerRouter.ts – syncComments (Meta Graph API), list, stats, generateReply (KI), sendReply, hideComment, ignoreComment, bulkHideNegative
+- [x] Backend: KI-Antwortvorschlag mit Ton-Auswahl (freundlich/professionell/enthusiastisch) + EasySignals-Kontext
+- [x] Backend: Kommentar beantworten via Meta Graph API
+- [x] Backend: Kommentar verstecken via Meta Graph API
+- [x] Backend: Sentiment-Analyse (positiv/neutral/negativ) per KI beim Sync
+- [x] Frontend: CommentManager.tsx – Stats-Karten (Gesamt/Offen/Beantwortet/Versteckt/Positiv/Negativ)
+- [x] Frontend: Kommentar-Feed mit Doppelfilter (Status + Sentiment)
+- [x] Frontend: Sentiment-Badges mit Farb-Codierung + farbige linke Border
+- [x] Frontend: KI-Vorschlag-Dialog mit Ton-Auswahl + bearbeitbares Textfeld
+- [x] Frontend: Approve/Edit/Send-Workflow
+- [x] Frontend: "Alle Negativen verstecken" Bulk-Aktion
+- [x] Sidebar-Eintrag: Comment Manager mit MessageSquare Icon
+- [x] Route: /comment-manager
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden

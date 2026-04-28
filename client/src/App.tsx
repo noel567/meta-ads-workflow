@@ -24,6 +24,7 @@ import Knowledge from "./pages/Knowledge";
 import ImageAds from "./pages/ImageAds";
 import VideoAds from "./pages/VideoAds";
 import AdPerformance from "./pages/AdPerformance";
+import CommentManager from "./pages/CommentManager";
 import Login from "./pages/Login";
 import AdminUsers from "./pages/AdminUsers";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -75,6 +76,7 @@ function ProtectedRouter() {
       <Route path="/image-ads" component={ImageAds} />
       <Route path="/video-ads" component={VideoAds} />
       <Route path="/ad-performance" component={AdPerformance} />
+      <Route path="/comment-manager" component={CommentManager} />
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password/:token" component={ResetPassword} />

@@ -666,3 +666,32 @@ export const videoAds = mysqlTable("video_ads", {
 });
 export type VideoAd = typeof videoAds.$inferSelect;
 export type InsertVideoAd = typeof videoAds.$inferInsert;
+
+// ─── Meta Comment Manager ────────────────────────────────────────────────────
+export const metaComments = mysqlTable("meta_comments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // Meta IDs
+  commentId: varchar("commentId", { length: 128 }).notNull().unique(),
+  postId: varchar("postId", { length: 128 }).notNull(),
+  adId: varchar("adId", { length: 128 }),
+  adName: text("adName"),
+  platform: mysqlEnum("platform", ["facebook", "instagram"]).default("facebook").notNull(),
+  // Kommentar-Inhalt
+  authorName: varchar("authorName", { length: 255 }),
+  authorId: varchar("authorId", { length: 128 }),
+  message: text("message").notNull(),
+  // Verarbeitung
+  sentiment: mysqlEnum("sentiment", ["positive", "neutral", "negative"]).default("neutral"),
+  status: mysqlEnum("status", ["new", "replied", "hidden", "ignored"]).default("new").notNull(),
+  aiReply: text("aiReply"),
+  sentReply: text("sentReply"),
+  // Timestamps
+  metaCreatedAt: timestamp("metaCreatedAt"),
+  repliedAt: timestamp("repliedAt"),
+  hiddenAt: timestamp("hiddenAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MetaComment = typeof metaComments.$inferSelect;
+export type InsertMetaComment = typeof metaComments.$inferInsert;

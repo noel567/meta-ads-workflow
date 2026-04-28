@@ -30,6 +30,7 @@ import { contentBotRouter } from "./contentBotRouter";
 import { knowledgeRouter } from "./knowledgeRouter";
 import { imageAdsRouter } from "./imageAdsRouter";
 import { videoAdsRouter } from "./videoAdsRouter";
+import { commentManagerRouter } from "./commentManagerRouter";
 import { createApiKey, getApiKeysByUser, revokeApiKey, getAllUsers, createUserWithPassword, updateUserPassword, deleteUser } from "./db";
 import bcrypt from "bcryptjs";
 import { ENV } from "./_core/env";
@@ -1517,6 +1518,7 @@ export const appRouter = router({
   telegram: telegramRouter,
   metaInsights: metaInsightsRouter,
   adComments: adCommentsRouter,
+  commentManager: commentManagerRouter,
   budgetRules: budgetRulesRouter,
   driveToMeta: driveToMetaRouter,
   contentBot: contentBotRouter,

@@ -46,6 +46,7 @@ import {
   Image,
   Clapperboard,
   BarChart2,
+  MessageSquare,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -71,6 +72,7 @@ const menuItems = [
   { icon: Image, label: "Image Ads", path: "/image-ads" },
   { icon: Clapperboard, label: "Video Ads", path: "/video-ads" },
   { icon: BarChart2, label: "Ad Performance", path: "/ad-performance" },
+  { icon: MessageSquare, label: "Comment Manager", path: "/comment-manager" },
   { icon: BookOpen, label: "Transkripte", path: "/transcripts" },
   { icon: MonitorPlay, label: "Teleprompter", path: "/teleprompter" },
   { icon: FileText, label: "Dokumente", path: "/documents" },

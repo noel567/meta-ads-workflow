@@ -1,0 +1,23 @@
+CREATE TABLE `meta_comments` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`userId` int NOT NULL,
+	`commentId` varchar(128) NOT NULL,
+	`postId` varchar(128) NOT NULL,
+	`adId` varchar(128),
+	`adName` text,
+	`platform` enum('facebook','instagram') NOT NULL DEFAULT 'facebook',
+	`authorName` varchar(255),
+	`authorId` varchar(128),
+	`message` text NOT NULL,
+	`sentiment` enum('positive','neutral','negative') DEFAULT 'neutral',
+	`status` enum('new','replied','hidden','ignored') NOT NULL DEFAULT 'new',
+	`aiReply` text,
+	`sentReply` text,
+	`metaCreatedAt` timestamp,
+	`repliedAt` timestamp,
+	`hiddenAt` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `meta_comments_id` PRIMARY KEY(`id`),
+	CONSTRAINT `meta_comments_commentId_unique` UNIQUE(`commentId`)
+);
