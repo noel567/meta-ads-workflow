@@ -10,7 +10,7 @@
 import express from "express";
 import { getDb } from "./db";
 import { metaConnections } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { authenticateRequest } from "./_core/auth";
 
 const META_APP_ID = process.env.META_APP_ID ?? "";
@@ -215,7 +215,7 @@ export function registerMetaOAuthRoutes(app: express.Application) {
       const [conn] = await db
         .select()
         .from(metaConnections)
-        .where(eq(metaConnections.userId, userId!))
+        .where(and(eq(metaConnections.userId, userId!), eq(metaConnections.isActive, true)))
         .limit(1);
 
       if (!conn) return res.json({ connected: false });
