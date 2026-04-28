@@ -37,7 +37,7 @@ export default function MetaConnect() {
   const utils = trpc.useUtils();
   const [location] = useLocation();
   const { data: connection, isLoading: loadingConn } = trpc.meta.getConnection.useQuery();
-  const [oauthStatus, setOauthStatus] = useState<{ connected: boolean; pageName?: string; adAccountName?: string; scopes?: string } | null>(null);
+  const [oauthStatus, setOauthStatus] = useState<{ connected: boolean; pageName?: string; adAccountName?: string; scopes?: string | string[] } | null>(null);
   const [checkingOAuth, setCheckingOAuth] = useState(false);
 
   // Account selection state
@@ -142,7 +142,11 @@ export default function MetaConnect() {
   });
 
   const isConnected = oauthStatus?.connected || !!connection;
-  const grantedScopes = oauthStatus?.scopes?.split(",").filter(Boolean) ?? [];
+  const grantedScopes = oauthStatus?.scopes
+    ? (Array.isArray(oauthStatus.scopes)
+        ? oauthStatus.scopes
+        : String(oauthStatus.scopes).split(",").filter(Boolean))
+    : [];
 
   return (
     <DashboardLayout>
