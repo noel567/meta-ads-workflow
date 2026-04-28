@@ -15,16 +15,15 @@ const META_APP_ID = process.env.META_APP_ID ?? "";
 const META_APP_SECRET = process.env.META_APP_SECRET ?? "";
 const META_BASE = "https://graph.facebook.com/v19.0";
 
-// All required scopes for Comment Manager + Ads
+// Scopes: nur Permissions die ohne App Review verfügbar sind.
+// pages_manage_engagement, instagram_basic, instagram_manage_comments
+// benötigen App Review (Advanced Access) – werden nach Genehmigung wieder hinzugefügt.
 const REQUIRED_SCOPES = [
   "ads_management",
   "ads_read",
   "pages_read_engagement",
-  "pages_manage_engagement",
   "pages_show_list",
   "pages_manage_metadata",
-  "instagram_basic",
-  "instagram_manage_comments",
   "business_management",
   "public_profile",
 ].join(",");
