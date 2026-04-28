@@ -255,11 +255,25 @@ const metaRouter = router({
     const conn = await getMetaConnection(ctx.user.id);
     if (!conn) throw new Error("Keine Meta-Verbindung gefunden.");
     const dp = input.datePreset || "last_30d";
-    const data = await fetchMetaAPI(`/${conn.adAccountId}/campaigns`, conn.accessToken, {
-      fields: `id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(${dp}){spend,impressions,clicks,ctr,cpc,reach}`,
-      limit: "50",
-    });
-    const campaigns = (data.data || []).map((c: any) => ({
+    // Alle Kampagnen mit Pagination holen (Meta gibt max 100 pro Request)
+    const allCampaignRaw: any[] = [];
+    let nextUrl: string | null = null;
+    do {
+      let data: any;
+      if (nextUrl) {
+        const res = await fetch(nextUrl);
+        data = await res.json();
+        if (data.error) throw new Error(data.error.message || "Meta API error");
+      } else {
+        data = await fetchMetaAPI(`/${conn.adAccountId}/campaigns`, conn.accessToken, {
+          fields: `id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(${dp}){spend,impressions,clicks,ctr,cpc,reach}`,
+          limit: "100",
+        });
+      }
+      allCampaignRaw.push(...(data.data || []));
+      nextUrl = data.paging?.next || null;
+    } while (nextUrl);
+    const campaigns = allCampaignRaw.map((c: any) => ({
       userId: ctx.user.id,
       metaId: c.id,
       name: c.name,
@@ -285,13 +299,28 @@ const metaRouter = router({
     const dp = input.datePreset || "last_30d";
     const campaignsData = await getCampaigns(ctx.user.id);
     let totalSynced = 0;
-    for (const campaign of campaignsData.slice(0, 10)) {
+    // Alle Kampagnen iterieren (nicht nur die ersten 10)
+    for (const campaign of campaignsData) {
       try {
-        const data = await fetchMetaAPI(`/${campaign.metaId}/ads`, conn.accessToken, {
-          fields: `id,name,status,creative{title,body,image_url},insights.date_preset(${dp}){spend,impressions,clicks,ctr,cpc,reach,actions}`,
-          limit: "20",
-        });
-        const ads = (data.data || []).map((ad: any) => {
+        // Alle Ads mit Pagination holen
+        const allAdsRaw: any[] = [];
+        let nextAdsUrl: string | null = null;
+        do {
+          let data: any;
+          if (nextAdsUrl) {
+            const res = await fetch(nextAdsUrl);
+            data = await res.json();
+            if (data.error) throw new Error(data.error.message);
+          } else {
+            data = await fetchMetaAPI(`/${campaign.metaId}/ads`, conn.accessToken, {
+              fields: `id,name,status,creative{title,body,image_url},insights.date_preset(${dp}){spend,impressions,clicks,ctr,cpc,reach,actions}`,
+              limit: "100",
+            });
+          }
+          allAdsRaw.push(...(data.data || []));
+          nextAdsUrl = data.paging?.next || null;
+        } while (nextAdsUrl);
+        const ads = allAdsRaw.map((ad: any) => {
           const insights = ad.insights?.data?.[0] || {};
           const purchaseAction = insights.actions?.find((a: any) => a.action_type === "purchase");
           const spend = insights.spend ? parseFloat(insights.spend) : null;

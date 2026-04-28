@@ -696,3 +696,9 @@
 - [x] Backend: Spend direkt vom Ad Account via Meta API geholt (nicht aus DB-Cache)
 - [x] Frontend: Zeitraum-Dropdown in AdPerformance.tsx (heute, gestern, 7d, 14d, 30d, 90d, gesamte Laufzeit)
 - [x] 0 TypeScript-Fehler
+
+## Bug: Falscher Spend in Analytics-Seite (April 2026)
+- [x] Fix: syncCampaigns mit Pagination (alle 93 Kampagnen, nicht nur 50)
+- [x] Fix: syncAds iteriert alle Kampagnen (nicht nur slice(0,10))
+- [x] Fix: Ads-Pagination pro Kampagne (limit 100, paging.next)
+- [x] 0 TypeScript-Fehler
