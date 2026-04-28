@@ -5,6 +5,7 @@ import { videoAds, knowledgeFiles } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
+import { pushVideoAdToBrain } from "./brainPush";
 
 const HEYGEN_BASE = "https://api.heygen.com";
 
@@ -140,6 +141,14 @@ CTA: [Call-to-Action, max 20 Wörter, klar und dringend]`,
           aspectRatio: "9:16",
         })
         .$returningId();
+
+      // Brain Push: neues Video-Skript an VPS Brain senden (fire-and-forget)
+      pushVideoAdToBrain({
+        id: inserted.id,
+        hook: input.hook,
+        status: "draft",
+        createdAt: new Date(),
+      }).catch(() => {});
 
       return { id: inserted.id };
     }),

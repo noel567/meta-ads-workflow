@@ -6,6 +6,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import { renderCompositeAd, getDefaultTextElements, type AdTemplate, type TextElement } from "./compositeAdRenderer";
+import { pushImageAdToBrain, pushPerformanceToBrain } from "./brainPush";
 
 // Livio reference photo URL for image generation
 const LIVIO_PHOTO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663565941002/UojQwiICNYeKudJO.webp";
@@ -229,6 +230,16 @@ Antworte NUR mit den 4 Headlines, eine pro Zeile, keine Nummerierung.`,
         }
       }
 
+      // Brain Push: neue Ad an VPS Knowledge Graph senden (fire-and-forget)
+      pushImageAdToBrain({
+        id: adId,
+        headline: input.headline,
+        template: input.template,
+        imageUrl: s3Url,
+        status: "draft",
+        createdAt: new Date(),
+      }).catch(() => {});
+
       return { id: adId, imageUrl: s3Url, headlines: [...headlineTexts, ...extraHeadlines] };
     }),
 
@@ -357,6 +368,23 @@ Antworte NUR mit den 4 Headlines, eine pro Zeile, keine Nummerierung.`,
           console.error(`[ImageAds] Performance-Sync Fehler für Ad ${ad.id}:`, e);
         }
       }
+      // Brain Push: Performance-Snapshot an VPS Brain senden (fire-and-forget)
+      if (synced > 0) {
+        const allAds = await db.select().from(imageAds).where(eq(imageAds.userId, ctx.user.id));
+        const winners = allAds.filter(a => a.boardStatus === "winner");
+        const adsWithCtr = allAds.filter(a => a.ctr && a.ctr > 0);
+        const avgCtr = adsWithCtr.length > 0 ? adsWithCtr.reduce((s, a) => s + (a.ctr ?? 0), 0) / adsWithCtr.length : 0;
+        const totalSpend = allAds.reduce((s, a) => s + (a.spend ?? 0), 0);
+        const topAd = allAds.filter(a => a.ctr && a.ctr > 0).sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0))[0];
+        pushPerformanceToBrain({
+          totalAds: allAds.length,
+          winners: winners.length,
+          avgCtr,
+          totalSpend,
+          topAd: topAd ? { headline: topAd.title ?? "–", ctr: topAd.ctr ?? 0 } : null,
+        }).catch(() => {});
+      }
+
       return { synced, message: `${synced} Ads synchronisiert` };
     }),
 

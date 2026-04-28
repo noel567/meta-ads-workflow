@@ -639,3 +639,15 @@
 - [x] Frontend: "Rendern"-Button speichert finale Positionen und erstellt Composite-Bild
 - [x] Frontend: ImageAds.tsx – 2-Schritt-Workflow (Formular → Editor → Rendern)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Brain-Push Integration – EasySignals VPS (April 2026)
+- [x] VPS: Brain Ingest-Endpoint POST /api/brain/ingest implementiert (Token-Auth: x-brain-token)
+- [x] VPS: easysignals.service von nohup auf stabilen systemd-Service migriert (kein Port-Konflikt mehr)
+- [x] VPS: Syntax-Fehler in server.js behoben, Service läuft stabil (active)
+- [x] Meta Ads Workflow: server/brainPush.ts – Brain-Push-Service mit 4 Convenience-Funktionen
+- [x] Meta Ads Workflow: pushImageAdToBrain() in imageAdsRouter.ts nach generate aufrufen
+- [x] Meta Ads Workflow: pushVideoAdToBrain() in videoAdsRouter.ts nach generate aufrufen
+- [x] Meta Ads Workflow: pushPerformanceToBrain() in imageAdsRouter.ts nach syncPerformance aufrufen
+- [ ] Meta Ads Workflow: pushAnalysisToBrain() in metaInsightsRouter.ts nach Analyse aufrufen (optional)
+- [x] Integration getestet: 3 Nodes gesendet, total_nodes=101 auf VPS Brain
+- [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
