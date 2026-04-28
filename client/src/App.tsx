@@ -29,6 +29,7 @@ import Login from "./pages/Login";
 import AdminUsers from "./pages/AdminUsers";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Privacy from "./pages/Privacy";
 import { useAuth } from "./_core/hooks/useAuth";
 
 function ProtectedRouter() {
@@ -46,9 +47,8 @@ function ProtectedRouter() {
     // Allow public auth pages without login
     const path = window.location.pathname;
     if (path.startsWith("/forgot-password")) return <ForgotPassword />;
-    if (path.startsWith("/reset-password")) {
-      return <ResetPassword />;
-    }
+    if (path.startsWith("/reset-password")) return <ResetPassword />;
+    if (path.startsWith("/privacy")) return <Privacy />;
     return <Login />;
   }
 
