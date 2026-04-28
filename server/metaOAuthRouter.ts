@@ -63,11 +63,11 @@ export function registerMetaOAuthRoutes(app: express.Application) {
     const { code, state, error: oauthError } = req.query as Record<string, string>;
 
     if (oauthError) {
-      return res.redirect(`/meta-connect?error=${encodeURIComponent(oauthError)}`);
+      return res.redirect(`/connect?error=${encodeURIComponent(oauthError)}`);
     }
 
     if (!code || !state) {
-      return res.redirect("/meta-connect?error=missing_params");
+      return res.redirect("/connect?error=missing_params");
     }
 
     let origin = "";
@@ -75,11 +75,11 @@ export function registerMetaOAuthRoutes(app: express.Application) {
       const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
       origin = decoded.origin || "";
     } catch {
-      return res.redirect("/meta-connect?error=invalid_state");
+      return res.redirect("/connect?error=invalid_state");
     }
 
     if (!META_APP_ID || !META_APP_SECRET) {
-      return res.redirect("/meta-connect?error=app_not_configured");
+      return res.redirect("/connect?error=app_not_configured");
     }
 
     try {
@@ -109,11 +109,9 @@ export function registerMetaOAuthRoutes(app: express.Application) {
       const longData = await longRes.json() as any;
       const longLivedToken: string = longData.access_token || userToken;
 
-      // Get user info + ad accounts
-      const meData = await metaGet("/me?fields=id,name", longLivedToken);
-      const accountsData = await metaGet("/me/adaccounts?fields=id,name&limit=5", longLivedToken);
-      const adAccount = accountsData.data?.[0];
-      if (!adAccount) throw new Error("Kein Ad Account gefunden");
+      // Get user info + ALL ad accounts (up to 25)
+      const accountsData = await metaGet("/me/adaccounts?fields=id,name&limit=25", longLivedToken);
+      const allAccounts: {id: string, name: string}[] = accountsData.data ?? [];
 
       // Get pages + page access tokens
       const pagesData = await metaGet("/me/accounts?fields=id,name,access_token&limit=10", longLivedToken);
@@ -129,57 +127,74 @@ export function registerMetaOAuthRoutes(app: express.Application) {
         .map((p: any) => p.permission)
         .join(",");
 
-      // Save to DB – find user via session cookie
-      const db = await getDb();
-      let userId: number | null = null;
-      try {
-        const user = await authenticateRequest(req as any);
-        userId = user.id;
-      } catch {
-        // Not logged in – still redirect with success, user can reconnect later
-      }
+      // Store token + pages in session for account selection step
+      (req as any).session = (req as any).session || {};
+      (req as any).session.metaPending = {
+        longLivedToken,
+        pageToken,
+        pageId,
+        pageName,
+        grantedScopes,
+        allAccounts,
+      };
 
-      if (db && userId) {
-        const [existing] = await db
-          .select({ id: metaConnections.id })
-          .from(metaConnections)
-          .where(eq(metaConnections.userId, userId))
-          .limit(1);
+      if (allAccounts.length === 0) throw new Error("Kein Ad Account gefunden. Bitte mit dem richtigen Business-Account anmelden.");
 
-        if (existing) {
-          await db
-            .update(metaConnections)
-            .set({
-              accessToken: longLivedToken,
-              adAccountId: adAccount.id,
-              adAccountName: adAccount.name,
-              pageToken,
-              pageId,
-              pageName,
-              scopes: grantedScopes,
-              isActive: true,
-            })
-            .where(eq(metaConnections.userId, userId));
-        } else {
-          await db.insert(metaConnections).values({
-            userId,
-            accessToken: longLivedToken,
-            adAccountId: adAccount.id,
-            adAccountName: adAccount.name,
-            pageToken,
-            pageId,
-            pageName,
-            scopes: grantedScopes,
-            isActive: true,
-          });
+      // If only one account, save directly
+      if (allAccounts.length === 1) {
+        const adAccount = allAccounts[0];
+        const db = await getDb();
+        let userId: number | null = null;
+        try { const user = await authenticateRequest(req as any); userId = user.id; } catch {}
+        if (db && userId) {
+          const [existing] = await db.select({ id: metaConnections.id }).from(metaConnections).where(eq(metaConnections.userId, userId)).limit(1);
+          if (existing) {
+            await db.update(metaConnections).set({ accessToken: longLivedToken, adAccountId: adAccount.id, adAccountName: adAccount.name, pageToken, pageId, pageName, scopes: grantedScopes, isActive: true }).where(eq(metaConnections.userId, userId));
+          } else {
+            await db.insert(metaConnections).values({ userId, accessToken: longLivedToken, adAccountId: adAccount.id, adAccountName: adAccount.name, pageToken, pageId, pageName, scopes: grantedScopes, isActive: true });
+          }
         }
+        return res.redirect(`${origin}/connect?success=1&page=${encodeURIComponent(pageName)}&account=${encodeURIComponent(adAccount.name)}`);
       }
 
-      // Redirect back to app with success
-      res.redirect(`${origin}/meta-connect?success=1&page=${encodeURIComponent(pageName)}&account=${encodeURIComponent(adAccount.name)}`);
+      // Multiple accounts – redirect to selection page with token in query (short-lived, base64)
+      const pendingData = Buffer.from(JSON.stringify({ longLivedToken, pageToken, pageId, pageName, grantedScopes, allAccounts })).toString("base64url");
+      res.redirect(`${origin}/connect?choose=1&pending=${pendingData}`);
     } catch (err: any) {
       console.error("[Meta OAuth] Error:", err.message);
-      res.redirect(`${origin}/meta-connect?error=${encodeURIComponent(err.message)}`);
+      res.redirect(`${origin}/connect?error=${encodeURIComponent(err.message)}`);
+    }
+  });
+
+  // API: Select ad account after OAuth (POST)
+  app.post("/api/meta/oauth/select-account", async (req, res) => {
+    try {
+      const { pending, adAccountId } = req.body as { pending: string; adAccountId: string };
+      if (!pending || !adAccountId) return res.status(400).json({ error: "Missing params" });
+
+      const data = JSON.parse(Buffer.from(pending, "base64url").toString());
+      const { longLivedToken, pageToken, pageId, pageName, grantedScopes, allAccounts } = data;
+
+      const adAccount = allAccounts.find((a: any) => a.id === adAccountId);
+      if (!adAccount) return res.status(400).json({ error: "Account nicht gefunden" });
+
+      const db = await getDb();
+      if (!db) return res.status(500).json({ error: "DB nicht verfügbar" });
+
+      let userId: number | null = null;
+      try { const user = await authenticateRequest(req as any); userId = user.id; } catch {}
+      if (!userId) return res.status(401).json({ error: "Nicht eingeloggt" });
+
+      const [existing] = await db.select({ id: metaConnections.id }).from(metaConnections).where(eq(metaConnections.userId, userId)).limit(1);
+      if (existing) {
+        await db.update(metaConnections).set({ accessToken: longLivedToken, adAccountId: adAccount.id, adAccountName: adAccount.name, pageToken, pageId, pageName, scopes: grantedScopes, isActive: true }).where(eq(metaConnections.userId, userId));
+      } else {
+        await db.insert(metaConnections).values({ userId, accessToken: longLivedToken, adAccountId: adAccount.id, adAccountName: adAccount.name, pageToken, pageId, pageName, scopes: grantedScopes, isActive: true });
+      }
+
+      res.json({ success: true, adAccountName: adAccount.name, pageName });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 

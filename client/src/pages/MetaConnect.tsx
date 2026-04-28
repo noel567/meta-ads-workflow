@@ -40,6 +40,13 @@ export default function MetaConnect() {
   const [oauthStatus, setOauthStatus] = useState<{ connected: boolean; pageName?: string; adAccountName?: string; scopes?: string } | null>(null);
   const [checkingOAuth, setCheckingOAuth] = useState(false);
 
+  // Account selection state
+  const [choosingAccount, setChoosingAccount] = useState(false);
+  const [pendingData, setPendingData] = useState("");
+  const [availableAccounts, setAvailableAccounts] = useState<{id: string; name: string}[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [savingAccount, setSavingAccount] = useState(false);
+
   // Check OAuth status on mount + after redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -48,16 +55,51 @@ export default function MetaConnect() {
     const account = params.get("account");
     if (success === "1") {
       toast.success(`✅ Meta verbunden! Seite: ${page || "–"}, Account: ${account || "–"}`);
-      // Clean URL
-      window.history.replaceState({}, "", "/meta-connect");
+      window.history.replaceState({}, "", "/connect");
       utils.meta.getConnection.invalidate();
     }
     const error = params.get("error");
     if (error) {
       toast.error(`Fehler beim Verbinden: ${decodeURIComponent(error)}`);
-      window.history.replaceState({}, "", "/meta-connect");
+      window.history.replaceState({}, "", "/connect");
+    }
+    // Account selection mode
+    const choose = params.get("choose");
+    const pending = params.get("pending");
+    if (choose === "1" && pending) {
+      try {
+        const data = JSON.parse(atob(pending.replace(/-/g, "+").replace(/_/g, "/")));
+        setAvailableAccounts(data.allAccounts || []);
+        setPendingData(pending);
+        setSelectedAccountId(data.allAccounts?.[0]?.id || "");
+        setChoosingAccount(true);
+        window.history.replaceState({}, "", "/connect");
+      } catch { toast.error("Fehler beim Laden der Accounts"); }
     }
   }, [location]);
+
+  const handleSaveAccount = async () => {
+    if (!selectedAccountId || !pendingData) return;
+    setSavingAccount(true);
+    try {
+      const res = await fetch("/api/meta/oauth/select-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pending: pendingData, adAccountId: selectedAccountId }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      toast.success(`✅ Verbunden mit: ${data.adAccountName}`);
+      setChoosingAccount(false);
+      utils.meta.getConnection.invalidate();
+      // Refresh OAuth status
+      fetch("/api/meta/oauth/status").then(r => r.json()).then(d => setOauthStatus(d));
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingAccount(false);
+    }
+  };
 
   // Fetch live OAuth status
   useEffect(() => {
@@ -186,8 +228,54 @@ export default function MetaConnect() {
           </Alert>
         )}
 
+        {/* Account Selection Dialog */}
+        {choosingAccount && (
+          <Card className="bg-card border-primary/30 mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart2 className="h-4 w-4 text-primary" />
+                Ad Account auswählen
+              </CardTitle>
+              <CardDescription>
+                Wähle den Ad Account den du mit dieser App verbinden möchtest.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {availableAccounts.map((acc) => (
+                <div
+                  key={acc.id}
+                  onClick={() => setSelectedAccountId(acc.id)}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedAccountId === acc.id
+                      ? "border-primary/50 bg-primary/5"
+                      : "border-border/50 hover:border-border"
+                  }`}
+                >
+                  <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                    selectedAccountId === acc.id ? "border-primary" : "border-muted-foreground"
+                  }`}>
+                    {selectedAccountId === acc.id && <div className="h-2 w-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{acc.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{acc.id}</p>
+                  </div>
+                </div>
+              ))}
+              <Button
+                onClick={handleSaveAccount}
+                disabled={!selectedAccountId || savingAccount}
+                className="w-full mt-2"
+              >
+                {savingAccount ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                Diesen Account verbinden
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* OAuth Connect Button */}
-        {!isConnected && (
+        {!isConnected && !choosingAccount && (
           <Card className="bg-card border-border/50 mb-6">
             <CardHeader className="pb-4">
               <CardTitle className="text-base flex items-center gap-2">
