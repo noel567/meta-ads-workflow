@@ -19,7 +19,7 @@ async function metaFetch(path: string, token: string, opts: RequestInit = {}) {
   return json;
 }
 
-async function getToken(userId: number): Promise<string> {
+async function getToken(userId: number, preferPageToken = false): Promise<string> {
   const db = await getDb();
   if (db) {
     const [conn] = await db
@@ -27,7 +27,11 @@ async function getToken(userId: number): Promise<string> {
       .from(metaConnections)
       .where(eq(metaConnections.userId, userId))
       .limit(1);
-    if (conn?.accessToken) return conn.accessToken;
+    if (conn) {
+      // Für Kommentare auf Seiten: Page Token bevorzugen (hat pages_read_engagement)
+      if (preferPageToken && conn.pageToken) return conn.pageToken;
+      if (conn.accessToken) return conn.accessToken;
+    }
   }
   return META_TOKEN ?? "";
 }
@@ -51,15 +55,17 @@ export const commentManagerRouter = router({
       limit: z.number().min(1).max(200).default(50),
     }))
     .mutation(async ({ ctx, input }) => {
-      const token = await getToken(ctx.user.id);
-      if (!token) throw new Error("Kein Meta Access Token konfiguriert");
+      // User Token für Ad Account Abfragen, Page Token für Kommentare
+      const userToken = await getToken(ctx.user.id, false);
+      const pageToken = await getToken(ctx.user.id, true);
+      if (!userToken) throw new Error("Kein Meta Access Token konfiguriert. Bitte zuerst unter 'Meta Verbinden' den OAuth-Flow durchführen.");
       const db = await getDb();
       if (!db) throw new Error("DB nicht verfügbar");
 
       // Ad Account ID ermitteln
       let adAccountId = input.adAccountId;
       if (!adAccountId) {
-        const meData = await metaFetch("/me/adaccounts?fields=id,name&limit=5", token);
+        const meData = await metaFetch("/me/adaccounts?fields=id,name&limit=5", userToken);
         if (!meData.data?.length) throw new Error("Kein Ad Account gefunden");
         adAccountId = meData.data[0].id;
       }
@@ -67,7 +73,7 @@ export const commentManagerRouter = router({
       // Aktive Ads mit Posts laden
       const adsData = await metaFetch(
         `/${adAccountId}/ads?fields=id,name,creative{object_story_id},status&limit=${input.limit}&filtering=[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`,
-        token
+        userToken
       );
       const ads = adsData.data ?? [];
 
@@ -79,10 +85,10 @@ export const commentManagerRouter = router({
         if (!postId) continue;
 
         try {
-          // Kommentare für diesen Post laden
+          // Kommentare für diesen Post laden – Page Token nutzen für pages_read_engagement
           const commentsData = await metaFetch(
             `/${postId}/comments?fields=id,message,from,created_time,can_hide&limit=50`,
-            token
+            pageToken
           );
           const comments = commentsData.data ?? [];
 

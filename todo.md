@@ -669,6 +669,12 @@
 - [x] Route: /comment-manager
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
 
+## Comment Manager Page Token Fix (April 2026)
+- [x] getToken() um preferPageToken-Parameter erweitert
+- [x] syncComments: userToken für Ad Account Abfragen, pageToken für Kommentar-Abruf
+- [x] sendReply + hideComment + bulkHideNegative: pageToken für Kommentar-Aktionen
+- [x] 0 TypeScript-Fehler
+
 ## Meta OAuth-Flow (April 2026)
 - [x] Backend: /api/meta/oauth/start – Redirect zu Meta Login mit allen Permissions
 - [x] Backend: /api/meta/oauth/callback – Code → Access Token Exchange
