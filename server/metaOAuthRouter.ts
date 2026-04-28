@@ -24,7 +24,6 @@ const REQUIRED_SCOPES = [
   "pages_read_engagement",      // Kommentare & Reaktionen lesen
   "pages_manage_engagement",    // Kommentare beantworten & verstecken
   "pages_show_list",            // Verbundene Seiten anzeigen
-  "pages_manage_metadata",      // Seiten-Metadaten
   "business_management",        // Business-Account-Zugriff
   "public_profile",             // Basis-Profil
 ].join(",");
