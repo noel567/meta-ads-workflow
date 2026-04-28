@@ -3,6 +3,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "./_core/llm";
 import {
   getMetaConnection, upsertMetaConnection, deleteMetaConnection,
@@ -426,6 +427,70 @@ const adLibraryRouter = router({
   deleteSaved: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => { await deleteCompetitorAd(input.id, ctx.user.id); return { success: true }; }),
+  searchImages: protectedProcedure
+    .input(z.object({
+      query: z.string().default(""),
+      pageId: z.string().optional(),
+      searchPageIds: z.array(z.string()).optional(),
+      country: z.string().default("DE"),
+      limit: z.number().default(30),
+      minImpressions: z.number().optional(),
+      maxImpressions: z.number().optional(),
+      startDateMin: z.string().optional(),
+      startDateMax: z.string().optional(),
+      activeStatus: z.enum(["ALL", "ACTIVE", "INACTIVE"]).default("ALL"),
+      after: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const conn = await getMetaConnection(ctx.user.id);
+      const token = conn?.accessToken || process.env.META_AD_LIBRARY_TOKEN || "";
+      const url = new URL("https://graph.facebook.com/v19.0/ads_archive");
+      if (input.query) url.searchParams.set("search_terms", input.query);
+      url.searchParams.set("ad_reached_countries", JSON.stringify([input.country]));
+      url.searchParams.set("ad_type", "ALL");
+      url.searchParams.set("limit", String(input.limit));
+      if (input.searchPageIds && input.searchPageIds.length > 0) {
+        url.searchParams.set("search_page_ids", JSON.stringify(input.searchPageIds));
+      }
+      if (input.activeStatus !== "ALL") {
+        url.searchParams.set("ad_active_status", input.activeStatus);
+      }
+      if (input.startDateMin) url.searchParams.set("ad_delivery_date_min", input.startDateMin);
+      if (input.startDateMax) url.searchParams.set("ad_delivery_date_max", input.startDateMax);
+      if (input.after) url.searchParams.set("after", input.after);
+      url.searchParams.set("fields",
+        "id,ad_creation_time,ad_delivery_start_time,ad_delivery_stop_time,ad_snapshot_url,page_name,page_id,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_descriptions,ad_creative_link_titles,currency,impressions,spend,publisher_platforms"
+      );
+      url.searchParams.set("access_token", token);
+      const res = await fetch(url.toString());
+      const data = await res.json() as { data?: any[]; paging?: { cursors?: { after?: string }; next?: string }; error?: { message: string } };
+      if (data.error) throw new TRPCError({ code: "BAD_REQUEST", message: data.error.message });
+      const results = (data.data || []).filter((ad: any) => {
+        if (input.minImpressions !== undefined) {
+          const lower = parseInt(ad.impressions?.lower_bound || "0");
+          if (lower < input.minImpressions) return false;
+        }
+        if (input.maxImpressions !== undefined) {
+          const upper = parseInt(ad.impressions?.upper_bound || "999999999");
+          if (upper > input.maxImpressions) return false;
+        }
+        return true;
+      });
+      return {
+        results,
+        nextCursor: data.paging?.cursors?.after || null,
+        hasMore: !!data.paging?.next,
+        total: results.length,
+      };
+    }),
+  downloadImages: protectedProcedure
+    .input(z.object({
+      snapshotUrls: z.array(z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      // Return snapshot URLs for client-side download
+      return { urls: input.snapshotUrls };
+    }),
 });
 
 const transcriptsRouter = router({
