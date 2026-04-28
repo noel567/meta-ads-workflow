@@ -80,6 +80,7 @@ function ProtectedRouter() {
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password/:token" component={ResetPassword} />
+      <Route path="/privacy" component={Privacy} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
