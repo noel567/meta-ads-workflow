@@ -1,9 +1,11 @@
 /**
  * Meta OAuth Flow
- * Handles Facebook/Instagram OAuth with all required permissions:
- * - ads_management, ads_read
- * - pages_read_engagement, pages_manage_engagement
- * - pages_show_list, instagram_basic, instagram_manage_comments
+ * Permissions: Read-only für Ads + Kommentar-Verwaltung
+ * - ads_read (Ads & Kampagnen lesen)
+ * - pages_read_engagement (Kommentare & Reaktionen lesen)
+ * - pages_manage_engagement (Kommentare beantworten & verstecken)
+ * - pages_show_list, pages_manage_metadata, business_management
+ * KEIN ads_management (keine Schreibrechte auf Ads)
  */
 import express from "express";
 import { getDb } from "./db";
@@ -15,17 +17,16 @@ const META_APP_ID = process.env.META_APP_ID ?? "";
 const META_APP_SECRET = process.env.META_APP_SECRET ?? "";
 const META_BASE = "https://graph.facebook.com/v19.0";
 
-// Scopes: nur Permissions die ohne App Review verfügbar sind.
-// pages_manage_engagement, instagram_basic, instagram_manage_comments
-// benötigen App Review (Advanced Access) – werden nach Genehmigung wieder hinzugefügt.
+// Scopes: Read-only für Ads + Kommentar-Verwaltung.
+// Kein ads_management – die App darf Ads nur lesen, nicht erstellen/ändern.
 const REQUIRED_SCOPES = [
-  "ads_management",
-  "ads_read",
-  "pages_read_engagement",
-  "pages_show_list",
-  "pages_manage_metadata",
-  "business_management",
-  "public_profile",
+  "ads_read",                   // Ads & Kampagnen lesen
+  "pages_read_engagement",      // Kommentare & Reaktionen lesen
+  "pages_manage_engagement",    // Kommentare beantworten & verstecken
+  "pages_show_list",            // Verbundene Seiten anzeigen
+  "pages_manage_metadata",      // Seiten-Metadaten
+  "business_management",        // Business-Account-Zugriff
+  "public_profile",             // Basis-Profil
 ].join(",");
 
 async function metaGet(path: string, token: string) {

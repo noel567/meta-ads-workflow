@@ -24,13 +24,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLocation } from "wouter";
 
 const PERMISSIONS = [
-  { icon: BarChart2, label: "ads_management", desc: "Kampagnen & Ads verwalten" },
-  { icon: Eye, label: "ads_read", desc: "Ad-Performance lesen" },
+  { icon: Eye, label: "ads_read", desc: "Ads & Kampagnen lesen (read-only)" },
   { icon: MessageSquare, label: "pages_read_engagement", desc: "Kommentare & Reaktionen lesen" },
   { icon: ShieldCheck, label: "pages_manage_engagement", desc: "Kommentare beantworten & verstecken" },
   { icon: Users, label: "pages_show_list", desc: "Verbundene Seiten anzeigen" },
-  { icon: Instagram, label: "instagram_basic", desc: "Instagram-Konto verknüpfen" },
-  { icon: MessageSquare, label: "instagram_manage_comments", desc: "Instagram-Kommentare verwalten" },
+  { icon: BarChart2, label: "business_management", desc: "Business-Account-Zugriff" },
 ];
 
 export default function MetaConnect() {

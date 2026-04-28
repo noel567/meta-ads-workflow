@@ -685,3 +685,8 @@
 - [x] Comment Manager: Page Token für Kommentar-Sync nutzen
 - [x] Backend: /api/meta/oauth/status – Live-Status-Endpoint (scopes, pageName, adAccountName)
 - [x] 0 TypeScript-Fehler, 27/27 Tests bestanden
+
+## Scopes-Reduktion (April 2026)
+- [x] ads_management aus OAuth-Scopes entfernt (nur Lesen + Kommentare)
+- [x] Permissions-Übersicht in MetaConnect.tsx angepasst (ads_management entfernt)
+- [x] 0 TypeScript-Fehler
