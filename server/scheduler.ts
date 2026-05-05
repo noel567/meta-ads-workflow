@@ -931,105 +931,216 @@ JSON Format:
 }
 
 // ─── Daily Image Ad Generation ────────────────────────────────────────────────
-
 const LIVIO_PHOTO_URL_SCHED = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663565941002/UojQwiICNYeKudJO.webp";
+const IMAGE_ADS_DRIVE_FOLDER_ID = "1mtLVYa0VS_IEBwORVX1X0NLzbv1zeKtJ"; // EasySignals — Image Ads 2026
 
-const AD_STYLE_PROMPTS_SCHED: Record<string, string> = {
-  luxury: `Luxury lifestyle photography. A young successful man (Livio Swiss, 25 years old, curly dark hair, beard, wearing black EasySignals polo shirt) in a high-end penthouse or luxury setting. Professional studio lighting, cinematic quality, aspirational wealth aesthetic. Gold and dark color palette.`,
-  trading_lifestyle: `Professional trading setup photography. A young trader (Livio Swiss, 25 years old, curly dark hair, beard, wearing black EasySignals polo shirt) at multiple monitors showing green charts. Modern office or home setup, confident pose, success atmosphere. Dark background with green accent lights.`,
-  results_proof: `Social proof marketing image. Clean minimal design with a smartphone showing trading profits, green numbers, success metrics. EasySignals branding. Dark premium background with gold accents. Professional product photography style.`,
-  dark_premium: `Dark premium minimalist advertisement. Dramatic lighting, deep blacks and gold tones. A young confident man (Livio Swiss, 25 years old, curly dark hair, beard) in business casual attire. Luxury watch visible, confident posture. High contrast, editorial photography style.`,
-};
+// 10 Ad-Angles für die tägliche Generierung (Fallback falls LLM-Konzepte fehlschlagen)
+const DAILY_AD_ANGLES = [
+  { angle: "social_proof", headline: "2.000+ Schweizer vertrauen täglich auf EasySignals", livio: true },
+  { angle: "pain", headline: "Keine Zeit für Trading? In 15 Min täglich profitieren", livio: true },
+  { angle: "results", headline: "Diese Woche im VIP Channel: +1.840 CHF Gewinn", livio: false },
+  { angle: "authority", headline: "Livio – Founder EasySignals – zeigt dir sein System", livio: true },
+  { angle: "fomo", headline: "Die grösste Trading-Community der Schweiz – bist du dabei?", livio: true },
+  { angle: "direct", headline: "SIGNAL. KOPIEREN. PROFIT. – So einfach ist EasySignals", livio: true },
+  { angle: "curiosity", headline: "Das LAT-System: Wie Schweizer Trader täglich Gewinne erzielen", livio: false },
+  { angle: "trust", headline: "Auch Verlusttage gibt es – aber das System funktioniert", livio: true },
+  { angle: "webinar", headline: "KOSTENLOSE LIVE SESSION – Signal kopieren, Profit machen", livio: true },
+  { angle: "regional", headline: "Die Nr. 1 Trading-Community im DACH-Raum", livio: false },
+] as const;
 
-const AD_STYLES_SCHED = ["luxury", "trading_lifestyle", "results_proof", "dark_premium"] as const;
+async function driveUploadImage(accessToken: string, name: string, imageBuffer: Buffer, mimeType: string, folderId?: string): Promise<{ id: string; webViewLink?: string } | null> {
+  try {
+    const metadata: Record<string, unknown> = { name, mimeType };
+    if (folderId) metadata.parents = [folderId];
+    const boundary = "img_boundary_sched";
+    const metaStr = JSON.stringify(metadata);
+    const part1 = Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metaStr}\r\n`);
+    const part2 = Buffer.from(`--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`);
+    const part3 = Buffer.from(`\r\n--${boundary}--`);
+    const body = Buffer.concat([part1, part2, imageBuffer, part3]);
+    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+      body,
+    });
+    const data = await res.json() as any;
+    if (data.error) { console.error("[DriveUploadImage] Error:", data.error.message); return null; }
+    return data as { id: string; webViewLink?: string };
+  } catch (e: any) {
+    console.error("[DriveUploadImage] Exception:", e.message);
+    return null;
+  }
+}
+
+async function getDriveAccessTokenForScheduler(): Promise<string | null> {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const db = await getDb();
+    if (!db) return null;
+    const { googleDriveConnections } = await import("../drizzle/schema");
+    const [conn] = await db.select().from(googleDriveConnections).limit(1);
+    if (!conn?.refreshToken) return null;
+    const resp = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId || "",
+        client_secret: clientSecret || "",
+        refresh_token: conn.refreshToken,
+        grant_type: "refresh_token",
+      }),
+    });
+    const data = await resp.json() as any;
+    return data.access_token || null;
+  } catch {
+    return null;
+  }
+}
 
 /**
- * Täglich 1-2 neue Image Ads generieren (DALL-E 3, Livio-Foto, EasySignals-Kontext)
- * Läuft um 06:00 UTC (08:00 CEST)
+ * Täglich 10 neue Image Ads generieren basierend auf Meta-Performance-Analyse
+ * Läuft um 06:00 UTC (08:00 CEST) — analysiert Vortags-Kampagnen und erstellt 10 Ads
+ * Lädt alle Ads in einen neuen Google Drive Ordner hoch
  */
 export async function runDailyImageAdGeneration(userId: number) {
-  console.log(`[DailyImageAds] Starting daily image ad generation for user ${userId}...`);
+  console.log(`[DailyImageAds] Starting daily image ad generation (10 ads) for user ${userId}...`);
   const db = await getDb();
   if (!db) { console.log("[DailyImageAds] DB not available, skipping."); return; }
 
-  // Get knowledge context
-  const kfFiles = await db.select().from(knowledgeFiles).where(eq(knowledgeFiles.userId, userId));
-  const knowledgeContext = kfFiles.map((f) => `${f.title}:\n${f.content.slice(0, 500)}`).join("\n\n");
-
-  // Pick a random style for today
-  const style = AD_STYLES_SCHED[Math.floor(Math.random() * AD_STYLES_SCHED.length)];
-  const basePrompt = AD_STYLE_PROMPTS_SCHED[style];
-
-  // Generate a unique title via LLM
-  const titleResp = await invokeLLM({
-    messages: [
-      { role: "system", content: "Du bist ein Meta Ads Texter für EasySignals (Schweizer Trading-Community). Erstelle einen kurzen, prägnanten Anzeigen-Titel (max. 8 Wörter). Nur der Titel, kein Kommentar." },
-      { role: "user", content: `Stil: ${style}. Kontext: ${knowledgeContext.slice(0, 800)}` },
-    ],
-  });
-  const title = ((titleResp as any).choices?.[0]?.message?.content ?? `EasySignals Ad – ${style}`).trim().slice(0, 255);
-
+  // ── 1. Meta Performance-Analyse: Top-Ads der letzten Tage ────────────────
+  let performanceContext = "";
   try {
-    // Generate image
-    const { url: imageUrl } = await generateImage({
-      prompt: basePrompt,
-      originalImages: [{ url: LIVIO_PHOTO_URL_SCHED, mimeType: "image/webp" }],
-    });
-    if (!imageUrl) throw new Error("Bild-URL leer");
+    const { getAds } = await import("./db");
+    const allAds = await getAds(userId);
+    if (allAds.length > 0) {
+      const topAds = [...allAds]
+        .filter(a => (a.impressions || 0) > 100)
+        .sort((a, b) => ((b.conversions || 0) - (a.conversions || 0)) || ((b.ctr || 0) - (a.ctr || 0)))
+        .slice(0, 5);
+      if (topAds.length > 0) {
+        performanceContext = `Top-performing Ads:\n` + topAds.map(a =>
+          `- "${a.name}": ${a.conversions || 0} Conversions, CTR ${((a.ctr || 0) * 100).toFixed(2)}%, Spend CHF ${(a.spend || 0).toFixed(0)}, Headline: "${a.headline || 'n/a'}"`
+        ).join("\n");
+        console.log(`[DailyImageAds] Performance context: ${topAds.length} top ads found`);
+      }
+    }
+  } catch (e: any) {
+    console.log(`[DailyImageAds] Could not load performance data: ${e.message}`);
+  }
 
-    // Upload to S3
-    const imgResp = await fetch(imageUrl);
-    const imgBuffer = Buffer.from(await imgResp.arrayBuffer());
-    const suffix = Math.random().toString(36).slice(2, 8);
-    const { url: s3Url } = await storagePut(`image-ads/${userId}-${suffix}.jpg`, imgBuffer, "image/jpeg");
+  // ── 2. Knowledge Context ──────────────────────────────────────────────────
+  const kfFiles = await db.select().from(knowledgeFiles).where(eq(knowledgeFiles.userId, userId));
+  const knowledgeContext = kfFiles.map((f) => `${f.title}:\n${f.content.slice(0, 400)}`).join("\n\n");
 
-    // Save to DB
-    const [inserted] = await db.insert(imageAds).values({
-      userId,
-      title,
-      style,
-      prompt: basePrompt,
-      imageUrl: s3Url,
-      boardStatus: "draft",
-      metaUploadStatus: "none",
-      boardX: Math.floor(Math.random() * 600),
-      boardY: Math.floor(Math.random() * 400),
-    }).$returningId();
-
-    // Generate 3 headlines via LLM
-    const headlineResp = await invokeLLM({
+  // ── 3. LLM: 10 Ad-Konzepte basierend auf Performance generieren ──────────
+  let adConcepts: Array<{ title: string; angle: string; headline: string; livio: boolean }> = [];
+  try {
+    const conceptsResp = await invokeLLM({
       messages: [
-        { role: "system", content: "Du bist ein Meta Ads Texter für EasySignals. Erstelle 3 kurze, wirkungsvolle Anzeigen-Headlines (max. 40 Zeichen je). Format: eine pro Zeile, kein Nummerierung." },
-        { role: "user", content: `Anzeige: ${title}. Stil: ${style}. Kontext: ${knowledgeContext.slice(0, 600)}` },
+        { role: "system", content: `Du bist ein Meta Ads Creative Strategist für EasySignals (Schweizer Trading-Community, DACH-Fokus). Basierend auf der Performance der letzten Tage und dem Brand-Kontext, erstelle 10 konkrete Image Ad Konzepte. Jedes Konzept hat: title (max 8 Wörter), angle (social_proof/pain/results/authority/fomo/direct/curiosity/trust/webinar/regional), headline (max 12 Wörter, auf Deutsch), livio (bool: ob Livio im Bild sein soll). Antworte als JSON: {"ads":[{"title":"...","angle":"...","headline":"...","livio":true}]}` },
+        { role: "user", content: `${performanceContext}\n\nBrand-Kontext:\n${knowledgeContext.slice(0, 1000)}` },
       ],
     });
-    const headlinesRaw = ((headlineResp as any).choices?.[0]?.message?.content ?? "").trim();
-    const headlines = headlinesRaw.split("\n").map((h: string) => h.trim()).filter((h: string) => h.length > 0).slice(0, 3);
+    const raw = (conceptsResp as any).choices?.[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(raw.includes("{") ? raw : `{"ads":${raw}}`);
+    adConcepts = (parsed.ads || parsed).slice(0, 10);
+  } catch (e: any) {
+    console.log(`[DailyImageAds] LLM concept generation failed, using fallback: ${e.message}`);
+  }
+  if (adConcepts.length < 10) {
+    adConcepts = DAILY_AD_ANGLES.map(a => ({ title: a.headline.slice(0, 60), angle: a.angle, headline: a.headline, livio: a.livio }));
+  }
 
-    for (const text of headlines) {
+  // ── 4. Google Drive Ordner für heute erstellen ───────────────────────────
+  const driveAccessToken = await getDriveAccessTokenForScheduler();
+  const today = new Date().toISOString().split("T")[0];
+  let dailyFolderId: string | null = null;
+  if (driveAccessToken) {
+    try {
+      dailyFolderId = await driveCreateFolder(driveAccessToken, `${today}_Daily-AI-Image-Ads`, IMAGE_ADS_DRIVE_FOLDER_ID);
+      console.log(`[DailyImageAds] Drive folder created: ${today}_Daily-AI-Image-Ads (${dailyFolderId})`);
+    } catch (e: any) {
+      console.log(`[DailyImageAds] Could not create Drive folder: ${e.message}`);
+    }
+  }
+
+  // ── 5. 10 Ads generieren ─────────────────────────────────────────────────
+  const results: Array<{ id: number; title: string; angle: string; driveUrl?: string }> = [];
+  for (let i = 0; i < Math.min(adConcepts.length, 10); i++) {
+    const concept = adConcepts[i];
+    try {
+      const livioDesc = concept.livio
+        ? `Livio (young Swiss man, 25 years old, curly dark hair, beard, wearing black EasySignals polo shirt with white arrow logo) holding a smartphone showing the EasySignals app with green profit charts. Polaroid photo of Livio in corner labeled "LIVIO – Founder EasySignals".`
+        : `Smartphone showing EasySignals app with green profit charts and trading signals. EasySignals logo visible.`;
+
+      const prompt = `Professional high-converting Meta/Instagram image ad, 4:5 portrait ratio. Dark navy blue background with subtle purple/blue gradient glow. Large bold white uppercase headline at top: "${concept.headline.toUpperCase()}". ${livioDesc} Two bullet points highlighting key benefits (no experience needed, 2000+ members, 15 min per day). Currency icons (dollar, euro, bitcoin) in green circles at bottom right. EasySignals branding. Clean direct-response fintech advertising style. High contrast, professional studio quality.`;
+
+      const originalImages = concept.livio ? [{ url: LIVIO_PHOTO_URL_SCHED, mimeType: "image/webp" as const }] : undefined;
+      const { url: imageUrl } = await generateImage({ prompt, originalImages });
+      if (!imageUrl) throw new Error("Bild-URL leer");
+
+      // Upload to S3
+      const imgResp = await fetch(imageUrl);
+      const imgBuffer = Buffer.from(await imgResp.arrayBuffer());
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const { url: s3Url } = await storagePut(`image-ads/${userId}-daily-${today}-${i + 1}-${suffix}.jpg`, imgBuffer, "image/jpeg");
+
+      // Save to DB
+      const [inserted] = await db.insert(imageAds).values({
+        userId,
+        title: concept.title.slice(0, 255),
+        style: "dark_premium" as const,
+        prompt,
+        imageUrl: s3Url,
+        boardStatus: "draft" as const,
+        metaUploadStatus: "none" as const,
+        boardX: Math.floor(Math.random() * 800),
+        boardY: Math.floor(Math.random() * 600),
+      }).$returningId();
+
+      // Save headline to DB
       await db.insert(adHeadlines).values({
         userId,
         imageAdId: inserted.id,
-        text: text.slice(0, 512),
+        text: concept.headline.slice(0, 512),
         status: "draft",
         tested: false,
       });
+
+      // Upload to Google Drive
+      let driveUrl: string | undefined;
+      if (driveAccessToken && dailyFolderId) {
+        const safeName = concept.title.slice(0, 40).replace(/[^a-zA-Z0-9äöüÄÖÜ ]/g, "").trim();
+        const file = await driveUploadImage(
+          driveAccessToken,
+          `${String(i + 1).padStart(2, "0")}_${concept.angle}_${safeName}.jpg`,
+          imgBuffer,
+          "image/jpeg",
+          dailyFolderId
+        );
+        if (file?.webViewLink) driveUrl = file.webViewLink;
+      }
+
+      results.push({ id: inserted.id, title: concept.title, angle: concept.angle, driveUrl });
+      console.log(`[DailyImageAds] Ad ${i + 1}/10 created: "${concept.title}" (${concept.angle})${driveUrl ? " → Drive" : ""}`);
+
+      // Small delay between generations to avoid rate limits
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (e: any) {
+      console.error(`[DailyImageAds] Failed to generate ad ${i + 1}: ${e.message}`);
     }
-
-    await notifyOwner({
-      title: "🎨 Neue Image Ad generiert",
-      content: `Tägliche Image Ad erstellt: "${title}" (Stil: ${style})\n${headlines.length} Headlines generiert.\nAd-Board: https://metaadsflow-4xe4vzjf.manus.space/image-ads`,
-    });
-
-    console.log(`[DailyImageAds] Image Ad "${title}" (${style}) created with ${headlines.length} headlines.`);
-    return { id: inserted.id, title, style };
-  } catch (e: any) {
-    console.error(`[DailyImageAds] Failed to generate image ad:`, e.message);
-    await notifyOwner({
-      title: "⚠️ Image Ad Generierung fehlgeschlagen",
-      content: `Fehler beim Erstellen der täglichen Image Ad: ${e.message}`,
-    });
   }
+
+  // ── 6. Summary Notification ───────────────────────────────────────────────
+  const driveLink = dailyFolderId ? `\nGoogle Drive: https://drive.google.com/drive/folders/${dailyFolderId}` : "";
+  await notifyOwner({
+    title: `🎨 ${results.length}/10 tägliche Image Ads generiert`,
+    content: `Datum: ${today}\n${performanceContext ? "Basierend auf Meta Performance-Analyse." : "Ohne Performance-Daten."}\n\nAds:\n${results.map((r, i) => `${i + 1}. ${r.title} (${r.angle})`).join("\n")}${driveLink}\n\nAd-Board: https://metaadsflow-4xe4vzjf.manus.space/image-ads`,
+  });
+
+  console.log(`[DailyImageAds] Completed: ${results.length}/10 ads generated, ${results.filter(r => r.driveUrl).length} uploaded to Drive.`);
+  return results;
 }
 
 // ─── Daily Video Ad Script Generation ────────────────────────────────────────
